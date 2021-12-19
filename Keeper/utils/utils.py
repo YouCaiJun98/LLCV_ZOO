@@ -76,6 +76,24 @@ class AverageMeter(object):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
 
+class ProgressMeter(object):
+    def __init__(self, num_batches, meters, prefix="", logger=None):
+        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
+        self.meters = meters
+        self.prefix = prefix
+        self.logger = logger
+        assert self.logger, 'You should provide a logger for display.'
+
+    def display(self, batch, batch_name=None):
+        entries = [self.prefix + batch_name + self.batch_fmtstr.format(batch)]
+        entries += [str(meter) for meter in self.meters]
+        self.logger.info('\t'.join(entries))
+
+    def _get_batch_fmtstr(self, num_batches):
+        num_digits = len(str(num_batches // 1))
+        fmt = '{:' + str(num_digits) + 'd}'
+        return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+
 def save_checkpoint(state:dir, best_names:str, save_dir:str, filename='checkpoint.pth.tar'):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -85,4 +103,16 @@ def save_checkpoint(state:dir, best_names:str, save_dir:str, filename='checkpoin
         for best_name in best_names:
             best_path = os.path.join(save_dir, best_name)
             shutil.copyfile(save_path, best_path)
+
+from collections import OrderedDict
+def get_state_dict(checkpoint):
+    if type(checkpoint) is OrderedDict:
+        state_dict = checkpoint
+    elif type(checkpoint) is dict:
+        for key in checkpoint.keys():
+            # In case the params of optimizer is saved in the checkpoint
+            if ('state_dict' in key) and ('opti' not in key):
+                state_dict = checkpoint[key]
+    return state_dict
+
 

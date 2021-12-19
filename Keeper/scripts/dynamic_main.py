@@ -15,7 +15,7 @@ from datasets.BSD import bsd200, bsd100, bsd68
 from SSIM import ssim as calc_SSIM
 from models.dynamic_unet import d_unet, ActivationRateAccum
 
-parser = argparse.ArgumentParser("Welcome to the ZOO of LLCV!")
+parser = argparse.ArgumentParser("Dynamic Resolution Network for Denoising.")
 parser.add_argument('--dataset', type=str, default='./datasets/BSD500/', help='location of the data corpus')
 parser.add_argument('--epochs', type=int, default=1000, help='num of training epochs')
 parser.add_argument('--steps', type=int, default=100, help='steps of each epoch')

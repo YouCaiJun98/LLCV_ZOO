@@ -131,3 +131,5 @@ dmypy.json
 #pycharm
 .idea/
 TrashBin/
+*.swp
+results/

@@ -30,6 +30,7 @@ class SIDD_Medium_sRGB_Train_DataLoader(Dataset):
         self.patched_input  = patched_input
         self.noisy_imgs, self.clean_imgs = [], []
         self.transform      = torchvision.transforms.ToTensor()
+        self.return_name    = False
 
         if not patched_input:
             # get file names from original dataset
@@ -66,7 +67,10 @@ class SIDD_Medium_sRGB_Train_DataLoader(Dataset):
         clean_patch = Data_Augmentation(self.transform(clean_patch), aug)
 
         filename = os.path.splitext(os.path.split(self.clean_imgs[index])[-1])[0]
-        return noisy_patch, clean_patch, filename
+        if self.return_name:
+            return noisy_patch, clean_patch, filename
+        else:
+            return noisy_patch, clean_patch
 
 # this class is for SIDD val on sRGB patches.
 # could download patched val data from https://drive.google.com/drive/folders/1S44fHXaVxAYW3KLNxK41NYCnyX9S79su
@@ -79,6 +83,7 @@ class SIDD_sRGB_Val_DataLoader(Dataset):
         self.length     = len(self.noisy_imgs)
         self.patch_size = patch_size
         self.transform  = torchvision.transforms.ToTensor()
+        self.return_name= False
 
     def __len__(self):
         return self.length
@@ -97,7 +102,10 @@ class SIDD_sRGB_Val_DataLoader(Dataset):
                                    self.transform(clean_patch)
         filename = os.path.splitext(os.path.split(self.clean_imgs[index])[-1])[0]
 
-        return noisy_patch, clean_patch, filename
+        if self.return_name:
+            return noisy_patch, clean_patch, filename
+        else:
+            return noisy_patch, clean_patch
 
 # this class is for SIDD test on sRGB patches stored in .mat format
 class SIDD_sRGB_mat_Test_DataLoader(Dataset):

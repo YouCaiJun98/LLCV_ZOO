@@ -66,19 +66,19 @@ class LSID(nn.Module):
         self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
 
         self.up6 = nn.ConvTranspose2d(512, 256, 2, stride=2, bias=False)
-        self.conv6_1 = nn.Conv2d(448, 256, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv6_1 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True)
         self.conv6_2 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True)
 
         self.up7 = nn.ConvTranspose2d(256, 128, 2, stride=2, bias=False)
-        self.conv7_1 = nn.Conv2d(224, 128, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv7_1 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=True)
         self.conv7_2 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=True)
 
         self.up8 = nn.ConvTranspose2d(128, 64, 2, stride=2, bias=False)
-        self.conv8_1 = nn.Conv2d(112, 64, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv8_1 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True)
         self.conv8_2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True)
 
         self.up9 = nn.ConvTranspose2d(64, 32, 2, stride=2, bias=False)
-        self.conv9_1 = nn.Conv2d(56, 32, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv9_1 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=True)
         self.conv9_2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=True)
 
         # The old implementation seems to set out channels with the size of the Bayer Pattern
@@ -96,12 +96,13 @@ class LSID(nn.Module):
                 m.weight.data.normal_(0, math.sqrt(2. / n))
 
     def forward(self, x):
-        import ipdb
+        # import ipdb
+        # ipdb.set_trace()
         x = self.conv1_1(x)
         x = self.lrelu(x)
         x = self.conv1_2(x)
         x = self.lrelu(x)
-        conv1 = x[:,:24,:,:]
+        # conv1 = x
         x = self.maxpool(x)
 
 
@@ -109,21 +110,21 @@ class LSID(nn.Module):
         x = self.lrelu(x)
         x = self.conv2_2(x)
         x = self.lrelu(x)
-        conv2 = x[:,:48,:,:]
+        # conv2 = x
         x = self.maxpool(x)
 
         x = self.conv3_1(x)
         x = self.lrelu(x)
         x = self.conv3_2(x)
         x = self.lrelu(x)
-        conv3 = x[:,:96,:,:]
+        # conv3 = x
         x = self.maxpool(x)
 
         x = self.conv4_1(x)
         x = self.lrelu(x)
         x = self.conv4_2(x)
         x = self.lrelu(x)
-        conv4 = x[:,:192,:,:]
+        # conv4 = x
         x = self.maxpool(x)
 
         x = self.conv5_1(x)
@@ -132,8 +133,7 @@ class LSID(nn.Module):
         x = self.lrelu(x)
 
         x = self.up6(x)
-        #ipdb.set_trace()
-        x = torch.cat((x, conv4), 1)
+        # x = torch.cat((x, conv4), 1)
         # x = torch.cat((x[:, :, :conv4.size(2), :conv4.size(3)], conv4), 1)
         x = self.conv6_1(x)
         x = self.lrelu(x)
@@ -141,7 +141,7 @@ class LSID(nn.Module):
         x = self.lrelu(x)
 
         x = self.up7(x)
-        x = torch.cat((x, conv3), 1)
+        #x = torch.cat((x, conv3), 1)
         #x = torch.cat((x[:, :, :conv3.size(2), :conv3.size(3)], conv3), 1)
 
         x = self.conv7_1(x)
@@ -150,7 +150,7 @@ class LSID(nn.Module):
         x = self.lrelu(x)
 
         x = self.up8(x)
-        x = torch.cat((x, conv2), 1)
+        # x = torch.cat((x, conv2), 1)
         # x = torch.cat((x[:, :, :conv2.size(2), :conv2.size(3)], conv2), 1)
 
         x = self.conv8_1(x)
@@ -159,7 +159,7 @@ class LSID(nn.Module):
         x = self.lrelu(x)
 
         x = self.up9(x)
-        x = torch.cat((x, conv1), 1)
+        # x = torch.cat((x, conv1), 1)
         # x = torch.cat((x[:, :, :conv1.size(2), :conv1.size(3)], conv1), 1)
 
         x = self.conv9_1(x)

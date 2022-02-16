@@ -141,8 +141,8 @@ class LSID(nn.Module):
         x = self.lrelu(x)
 
         x = self.up7(x)
-        #x = torch.cat((x, conv3), 1)
-        x = torch.cat((x[:, :, :conv3.size(2), :conv3.size(3)], conv3), 1)
+        x = torch.cat((x, conv3), 1)
+        # x = torch.cat((x[:, :, :conv3.size(2), :conv3.size(3)], conv3), 1)
 
         x = self.conv7_1(x)
         x = self.lrelu(x)
@@ -150,8 +150,8 @@ class LSID(nn.Module):
         x = self.lrelu(x)
 
         x = self.up8(x)
-        #x = torch.cat((x, conv2), 1)
-        x = torch.cat((x[:, :, :conv2.size(2), :conv2.size(3)], conv2), 1)
+        x = torch.cat((x, conv2), 1)
+        # x = torch.cat((x[:, :, :conv2.size(2), :conv2.size(3)], conv2), 1)
 
         x = self.conv8_1(x)
         x = self.lrelu(x)
@@ -159,8 +159,8 @@ class LSID(nn.Module):
         x = self.lrelu(x)
 
         x = self.up9(x)
-        #x = torch.cat((x, conv1), 1)
-        x = torch.cat((x[:, :, :conv1.size(2), :conv1.size(3)], conv1), 1)
+        x = torch.cat((x, conv1), 1)
+        # x = torch.cat((x[:, :, :conv1.size(2), :conv1.size(3)], conv1), 1)
 
         x = self.conv9_1(x)
         x = self.lrelu(x)

@@ -18,10 +18,10 @@ import utils
 import models
 import datasets
 from utils.metric import calc_SSIM, calc_PSNR
-from models.unet_denoise_ import pixel_shuffle
-from utils.quant_utils import get_qscheme, get_qconfig_dict, prepare_custom_config_dict, calibrate 
+from utils.quant_utils import get_qscheme, get_qconfig_dict, prepare_custom_config_dict, calibrate
 
 from mqbench.convert_deploy import convert_deploy
+from mqbench.weight_variation import inject_weight_variation
 from mqbench.prepare_by_platform import prepare_qat_fx_by_platform, BackendType
 from mqbench.utils.state import enable_calibration, enable_quantization, disable_all
 
@@ -46,9 +46,7 @@ parser.add_argument('--gpu', type=str, default='1', help='gpu device ids')
 parser.add_argument('--seed', type=int, default=99, help='seed for initializing training')
 parser.add_argument('--print_freq', type=int, default=10, help='print frequency (default: None)')
 parser.add_argument('--resume', type=str, default=None, 
-                    help='checkpoint path of a previous model, loading for evaluation or retrain')
-parser.add_argument('--pretrained', type=str, default=None,
-                    help='checkpoint path of a pretrained model, loaded as an initial point.')
+                    help='checkpoint path of previous model, loading for evaluation or retrain')
 parser.add_argument('--eager_test', dest='eager_test', action='store_true', 
                     help='debug only. test per 10 epochs during training')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -102,51 +100,22 @@ def main():
 
     criterion = nn.L1Loss()
 
-    # Load a pretrained model if given.
-    if args.pretrained:
-        if os.path.isfile(args.pretrained):
-            logging.info("Loading checkpoint '{}'".format(args.pretrained))
-            if not args.gpu:
-                checkpoint = torch.load(args.pretrained)
-            else:
-                loc = 'cuda:{}'.format(args.gpu)
-                checkpoint = torch.load(args.pretrained, map_location=loc)
-            start_epoch=best_psnr_epoch=best_ssim_epoch=best_loss_epoch = checkpoint['epoch']
-            model.load_state_dict(checkpoint['state_dict'])
-        else:
-            logging.info("No checkpoint found at '{}', please check.".format(args.pretrained))
-            return
-
-    # Dataset setup
+    # SIDD only
     Loader_Settings = {
         'num_workers': args.workers,
         'pin_memory':  True,
         'batch_size':  args.batch_size}
 
-    # SIDD
     train_data = datasets.SIDD_Medium_sRGB_Train_DataLoader(os.path.join(args.root, 'train'), 96000, 256, True)
     val_data = datasets.SIDD_sRGB_Val_DataLoader(os.path.join(args.root, 'val'))
     test_data = datasets.SIDD_sRGB_mat_Test_DataLoader(os.path.join(args.root, 'test'))
-    cali_data = torch.utils.data.Subset(train_data, indices=torch.arange(96000))
-
-    # Sony
-    '''
-    Dataset_Settings = {
-        'stage_in':  'raw',
-        'stage_out': 'sRGB'}
-    img_list_files = ['./datasets/Sony/Sony_train_list.txt', 
-                      './datasets/Sony/Sony_val_list.txt',
-                      './datasets/Sony/Sony_test_list.txt']
-    train_data = datasets.SID_Sony(args.root, img_list_files[0], patch_size=args.patch_size,  data_aug=True,  **Dataset_Settings)
-    val_data   = datasets.SID_Sony(args.root, img_list_files[1], patch_size=None, data_aug=False, **Dataset_Settings)
-    test_data  = datasets.SID_Sony(args.root, img_list_files[2], patch_size=None, data_aug=False, **Dataset_Settings)
-    cali_data  = torch.utils.data.Subset(train_data, indices=torch.arange(18))
-    '''
+    cali_data = torch.utils.data.Subset(train_data, indices=torch.arange(9600))
 
     train_loader = torch.utils.data.DataLoader(train_data, shuffle=True,  **Loader_Settings)
     val_loader = torch.utils.data.DataLoader(val_data, shuffle=False, **Loader_Settings)
     test_loader = torch.utils.data.DataLoader(test_data, shuffle=False, **Loader_Settings)
     cali_loader = torch.utils.data.DataLoader(cali_data, shuffle=False, **Loader_Settings)
+
 
     start_epoch = 0
     best_psnr = 0
@@ -155,10 +124,10 @@ def main():
     best_ssim_epoch = 0
     best_loss = float('inf')
     best_loss_epoch = 0
-
+ 
     # quantize model
-    get_qconfig_dict('io',       w_qscheme=get_qscheme(bit=16), a_qscheme=get_qscheme(bit=16, symmetry=False, per_channel=False))
-    get_qconfig_dict('default',  w_qscheme=get_qscheme(bit=16), a_qscheme=get_qscheme(bit=16, per_channel=False))
+    get_qconfig_dict('io',       w_qscheme=get_qscheme(),      a_qscheme=get_qscheme(symmetry=False, per_channel=False))
+    get_qconfig_dict('default',  w_qscheme=get_qscheme(bit=8), a_qscheme=get_qscheme(bit=8, per_channel=False))
     model = prepare_qat_fx_by_platform(model, BackendType.Custom, prepare_custom_config_dict)
     if args.gpu_flag:
         model = model.cuda()
@@ -166,7 +135,7 @@ def main():
     else:
         logging.info("Using CPU. This will be slow.")
 
-    # Resume a model if provided, this will load both weights and quant params.
+    # Resume a model if provided
     if args.resume:
         if os.path.isfile(args.resume):
             logging.info("Loading checkpoint '{}'".format(args.resume))
@@ -181,15 +150,19 @@ def main():
             logging.info("No checkpoint found at '{}', please check.".format(args.resume))
             return
 
-    ptq_flag = True
-    if not args.evaluate or ptq_flag:    
+    # 2022/2/12 update - carry a noise injection exp.
+    bit_dict = {}
+    import ipdb; ipdb.set_trace()
+    # model = inject_weight_variation(model, 8, bit_dict, variation=1./32.)
+
+    if not args.evaluate:
         # If this is not single evaluation, should calibrate the model first.
         enable_calibration(model)
         calibrate(cali_loader, model, logging, args)
         enable_quantization(model)
     
-    if args.evaluate:
-        assert args.resume or args.pretrained, "You should provide a checkpoint through args.resume."
+    elif args.evaluate:
+        assert args.resume, "You should provide a checkpoint through args.resume."
         from mqbench.convert_deploy import convert_merge_bn
         convert_merge_bn(model.eval())
         psnr, ssim, loss = infer(model, test_loader, criterion, args, logging)
@@ -260,7 +233,6 @@ def train(model, train_loader, criterion, optimizer, args, logging):
     for step, (inputs, targets) in enumerate(train_loader):
         inputs, targets = inputs.cuda(), targets.cuda()
         outputs = model(inputs)
-        # outputs = pixel_shuffle(outputs, upscale_factor=2, depth_first=True) # raw2rgb only
         loss = criterion(outputs, targets)
 
         optimizer.zero_grad()
@@ -296,22 +268,12 @@ def infer(model, val_loader, criterion, args, logging):
     
     # timer
     end = time.time()
-    
-    '''
-    # import ipdb; ipdb.set_trace()
-    # 2022/2/12 update - carry a noise injection exp.
-    bit_dict = {'conv1_1':8,
-                'conv10':8}
-    from mqbench.weight_variation import inject_weight_variation
-    model = inject_weight_variation(model, 4, bit_dict, variation=1./8.)
-    '''
 
     model.eval()
     with torch.no_grad():
         for batch, (inputs, targets) in enumerate(val_loader):
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs = model(inputs)
-            # outputs = pixel_shuffle(outputs, upscale_factor=2, depth_first=True) # raw2rgb only
 
             loss = criterion(outputs, targets)
             ssim = calc_SSIM(torch.clamp(outputs,0,1), targets)
@@ -337,9 +299,9 @@ def infer(model, val_loader, criterion, args, logging):
 def adjust_learning_rate(optimizer, epoch, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     # lr = args.lr * (0.1 ** (epoch // 40))
-    if epoch <= 80:
+    if epoch <= 100:
         lr = 1e-4
-    elif epoch <= 130:
+    elif epoch <= 180:
         lr = 5e-5
     else:
         lr = 1e-5

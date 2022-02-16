@@ -158,7 +158,7 @@ def main():
             return
 
     if args.evaluate:
-        assert args.resume, "You should provide a checkpoint through args.resume."
+        # assert args.resume, "You should provide a checkpoint through args.resume."
         psnr, ssim, loss = infer(model, test_loader, criterion, args, logging)
         logging.info("Average PSNR {}, Average SSIM {}, Average Loss {}"
                      .format(psnr, ssim, loss))
@@ -263,11 +263,20 @@ def infer(model, val_loader, criterion, args, logging):
     # timer
     end = time.time()
 
+    # Clear these out
+    import ipdb; ipdb.set_trace()
+    from thop import profile
+    dummy_input = [torch.randn(1,3,2048,1024).cuda()]
+    flops, params = profile(model, inputs=dummy_input, verbose=True)
+ 
     model.eval()
     with torch.no_grad():
         for batch, (inputs, targets) in enumerate(val_loader):
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs = model(inputs)
+            # should delete this after
+            ipdb.set_trace()
+            outputs = model(dummy_input[0])
 
             loss = criterion(outputs, targets)
             ssim = calc_SSIM(torch.clamp(outputs,0,1), targets)

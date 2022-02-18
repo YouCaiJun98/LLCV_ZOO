@@ -18,7 +18,7 @@ import utils
 import models
 import datasets
 from utils.metric import calc_SSIM, calc_PSNR
-from models.unet_denoise_ import pixel_shuffle
+from models.unet import pixel_shuffle
 from utils.quant_utils import get_qscheme, get_qconfig_dict, prepare_custom_config_dict, calibrate 
 
 from mqbench.convert_deploy import convert_deploy
@@ -64,7 +64,7 @@ def main():
                                             time.strftime("%Y%m%d-%H%M%S"))
         args.save_path = os.path.join(args.save_path, args.save_name)
         # scripts & configurations to be saved
-        save_list = ['qmain.py', 'utils/optimizer.py', 'models/unet_denoise_.py']
+        save_list = ['qmain.py', 'utils/optimizer.py', 'models/unet_variant.py']
         utils.create_exp_dir(args.save_path, scripts_to_save=save_list)
 
     # get info logger
@@ -157,8 +157,8 @@ def main():
     best_loss_epoch = 0
 
     # quantize model
-    get_qconfig_dict('io',       w_qscheme=get_qscheme(bit=16), a_qscheme=get_qscheme(bit=16, symmetry=False, per_channel=False))
-    get_qconfig_dict('default',  w_qscheme=get_qscheme(bit=16), a_qscheme=get_qscheme(bit=16, per_channel=False))
+    get_qconfig_dict('io',       w_qscheme=get_qscheme(bit=8),  a_qscheme=get_qscheme(bit=4, symmetry=False, per_channel=False))
+    get_qconfig_dict('default',  w_qscheme=get_qscheme(bit=8),  a_qscheme=get_qscheme(bit=4, per_channel=False))
     model = prepare_qat_fx_by_platform(model, BackendType.Custom, prepare_custom_config_dict)
     if args.gpu_flag:
         model = model.cuda()

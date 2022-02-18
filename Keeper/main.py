@@ -53,7 +53,7 @@ def main():
                                             time.strftime("%Y%m%d-%H%M%S"))
         args.save_path = os.path.join(args.save_path, args.save_name)
         # scripts & configurations to be saved
-        save_list = ['main.py', 'utils/optimizer.py', 'models/unet_denoise_.py']
+        save_list = ['main.py', 'utils/optimizer.py', 'models/unet_variant.py']
         utils.create_exp_dir(args.save_path, scripts_to_save=save_list)
 
     # get info logger
@@ -263,12 +263,14 @@ def infer(model, val_loader, criterion, args, logging):
     # timer
     end = time.time()
 
+    '''
     # Clear these out
     import ipdb; ipdb.set_trace()
     from thop import profile
     dummy_input = [torch.randn(1,3,2048,1024).cuda()]
     flops, params = profile(model, inputs=dummy_input, verbose=True)
- 
+    '''
+
     model.eval()
     with torch.no_grad():
         for batch, (inputs, targets) in enumerate(val_loader):

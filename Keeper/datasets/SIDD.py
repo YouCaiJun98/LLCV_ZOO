@@ -17,13 +17,12 @@ from .utils import *
 import ipdb
 
 # This class is for SIDD_Medium train on sRGB patches
-# TODO: rewrite a base class for tiny & Medium SIDD
 from natsort import natsorted
 from glob import glob
-class SIDD_Medium_sRGB_Train_DataLoader(Dataset):
+class SIDD_sRGB_Train_DataLoader(Dataset):
     def __init__(self, path, length, patch_size, patched_input=False):
         super(SIDD_Medium_sRGB_Train_DataLoader, self).__init__()
-        assert length % 320 == 0, 'You should specify a proper length.'
+        assert length % 160 == 0, 'You should specify a proper length.'
 
         self.len            = length
         self.patch_size     = patch_size
@@ -32,7 +31,7 @@ class SIDD_Medium_sRGB_Train_DataLoader(Dataset):
         self.transform      = torchvision.transforms.ToTensor()
         self.return_name    = False
 
-        if not patched_input:
+        if not self.patched_input:
             # get file names from original dataset
             imgs = natsorted(glob(os.path.join(path, '*', '*.PNG')))
             for img in imgs:

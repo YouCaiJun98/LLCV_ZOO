@@ -1,6 +1,19 @@
-model settings:
+model_settings:
     g: 3
-    m: 3
-    K: 3
+    m: 4
+    level: 4
+    kernel_size: 3
+    in_channels: 3
+    out_channels: 3
+    init_channels: 32
+    act: lrelu
+    BN: False
 
-training settings:
+training_settings:
+    seed: 98
+    epochs: 80
+    batch_size: 16
+    patch_size: 256
+    workers: 4
+    lr: 1.e-4 # initial lr
+    grad_clip: 5

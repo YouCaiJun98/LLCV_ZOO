@@ -3,13 +3,13 @@ import sys
 import glob
 import time
 import math
+import yaml
 import random
 import argparse
 import numpy as np
 
 import torch
 import torch.nn as nn
-
 
 import utils
 import models
@@ -18,25 +18,17 @@ from utils.metric import calc_SSIM, calc_PSNR
 
 ### -------------------- Parser Zone  -------------------- ###
 parser = argparse.ArgumentParser("☆ Welcome to the ZOO of LLCV ☆")
-parser.add_argument('--arch', metavar='ARCH', default='lsid')
+parser.add_argument('-a', '--arch', metavar='ARCH', default='lsid')
 parser.add_argument('--root', type=str, default='./datasets/SIDD/SIDD_patches/', help='root location of the data corpus')
-parser.add_argument('--epochs', type=int, default=80, help='num of training epochs')
-parser.add_argument('--batch_size', type=int, default=16, help='batch size')
-parser.add_argument('--learning_rate', type=float, default=1.e-4, help='init learning rate')
 parser.add_argument('--save_name', type=str, default='HE_valid', help='experiment name')
 parser.add_argument('--save_path', type=str, default='./checkpoints', help='parent path for saved experiments')
-parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
-parser.add_argument('--workers', default=8, type=int, metavar='N',
-                    help='number of data loading workers (default: 8)')
-parser.add_argument('--patch_size', type=int, default=512, help='patch size')
 parser.add_argument('--gpu', type=str, help='gpu device ids')
-parser.add_argument('--seed', type=int, default=99, help='seed for initializing training')
 parser.add_argument('--print_freq', type=int, default=10, help='print frequency (default: None)')
 parser.add_argument('--resume', type=str, default=None,
                     help='checkpoint path of previous model, loading for evaluation or retrain')
 parser.add_argument('--eager_test', dest='eager_test', action='store_true',
                     help='debug only. test per 10 epochs during training')
-parser.add_argument('-c', '--configuration', help='model & train/validate settings')
+parser.add_argument('-c', '--configuration', required=True, help='model & train/validate settings')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('-d', '--debug', dest='save_flag', action='store_false',
@@ -53,8 +45,21 @@ def main():
                                             time.strftime("%Y%m%d-%H%M%S"))
         args.save_path = os.path.join(args.save_path, args.save_name)
         # scripts & configurations to be saved
-        save_list = ['main.py', 'models/unet.py']
+        save_list = ['main.py', 'models/SGN_backup.py', str(args.configuration)]
         utils.create_exp_dir(args.save_path, scripts_to_save=save_list)
+
+    # parse configurations
+    with open(args.configuration, 'r') as rf:
+        cfg = yaml.load(rf, Loader=yaml.FullLoader)
+        train_cfg = cfg['training_settings']
+        model_cfg = cfg['model_settings']
+    epochs = train_cfg['epochs']
+    workers = train_cfg['workers']
+    init_lr = train_cfg['lr']
+    grad_clip = train_cfg['grad_clip']
+    batch_size = train_cfg['batch_size']
+    patch_size = train_cfg['patch_size']
+    seed = train_cfg['seed'] if train_cfg['seed'] else None
 
     # get info logger
     logging = utils.get_logger(args)
@@ -71,22 +76,22 @@ def main():
         logging.info("\033[1;3mWARNING: Using CPU!\033[0m")
 
     # set random seed
-    if args.seed:
+    if seed:
         # cpu seed
-        random.seed(args.seed)
-        torch.manual_seed(args.seed)
-        np.random.seed(args.seed)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(args.seed)
+            torch.cuda.manual_seed_all(seed)
             torch.backends.cudnn.benchmark = False
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.enabled = True
-        logging.info("Setting Random Seed {}".format(args.seed))
+        logging.info("Setting Random Seed {}".format(seed))
 
     # set up model & optimizer & dataset 
     criterion = nn.L1Loss()
 
-    model = models.__dict__[args.arch](inchannel=3, outchannel=3, base_ch=5)
+    model = models.__dict__[args.arch](model_cfg)
     logging.info(model)
 
     if args.gpu_flag:
@@ -95,7 +100,7 @@ def main():
     else:
         logging.info("Using CPU. This will be slow.")
 
-    optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), init_lr)
 
     '''
     # SID-Sony only
@@ -105,16 +110,16 @@ def main():
     train_data = datasets.SID_Sony(args.dataset, img_list_files[0], patch_size=args.patch_size,  data_aug=True,  stage_in='raw', stage_out='raw')
     val_data   = datasets.SID_Sony(args.dataset, img_list_files[1], patch_size=None, data_aug=False, stage_in='raw', stage_out='raw')
     test_data  = datasets.SID_Sony(args.dataset, img_list_files[2], patch_size=None, data_aug=False, stage_in='raw', stage_out='raw')
-    train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, num_workers=args.workers, pin_memory=True, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_data, batch_size=1, num_workers=args.workers, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1, num_workers=args.workers, pin_memory=True)
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, num_workers=workers, pin_memory=True, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_data, batch_size=1, num_workers=workers, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1, num_workers=workers, pin_memory=True)
     '''
 
     # SIDD only
     Loader_Settings = {
-        'num_workers': args.workers,
+        'num_workers': workers,
         'pin_memory':  True,
-        'batch_size':  args.batch_size}
+        'batch_size':  batch_size}
     train_data = datasets.SIDD_sRGB_Train_DataLoader(os.path.join(args.root, 'train'), 96000, 256, True)
     val_data = datasets.SIDD_sRGB_Val_DataLoader(os.path.join(args.root, 'val'))
     test_data  = datasets.SIDD_sRGB_mat_Test_DataLoader(os.path.join(args.root, 'test'))
@@ -142,12 +147,12 @@ def main():
             return
 
     # Clear these out
-
+    '''
     import ipdb; ipdb.set_trace()
     from thop import profile
     dummy_input = [torch.randn(1,3,256,256).cuda()]
     flops, params = profile(model, inputs=dummy_input, verbose=True)
-
+    '''
 
     if args.evaluate:
         # assert args.resume, "You should provide a checkpoint through args.resume."
@@ -157,10 +162,9 @@ def main():
         return
 
     # training progress
-    for epoch in range(0 if not start_epoch else start_epoch, args.epochs):
-
+    for epoch in range(0 if not start_epoch else start_epoch, epochs):
         # train one epoch
-        logging.info('Epoch [%d/%d]  lr: %e', epoch+1, args.epochs,
+        logging.info('Epoch [%d/%d]  lr: %e', epoch+1, epochs,
                      optimizer.state_dict()['param_groups'][0]['lr'])
         logging.info('<-Training Phase->')
 
@@ -226,7 +230,7 @@ def train(model, train_loader, criterion, optimizer, args, logging):
 
         optimizer.zero_grad()
         loss.backward()
-        #nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+        #nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
 
         with torch.no_grad():

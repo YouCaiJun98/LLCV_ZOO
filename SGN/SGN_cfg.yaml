@@ -1,0 +1,6 @@
+model settings:
+    g: 3
+    m: 3
+    K: 3
+
+training settings:

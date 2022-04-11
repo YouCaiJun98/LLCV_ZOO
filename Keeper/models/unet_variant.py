@@ -239,9 +239,9 @@ class LSID(nn.Module):
 
         return x # depth_to_space_conv
 
-def lsid(pretrained:bool=False, model_path:str=None, device=None,**kwargs):
+def lsid(model_path:str=None, device=None,**kwargs):
     model = LSID(**kwargs)
-    if pretrained and model_path:
+    if model_path:
         state_dict = torch.load(model_path, map_location=device)
         print(f'load pretrained checkpoint from: {model_path}')
         model.load_state_dict(state_dict)

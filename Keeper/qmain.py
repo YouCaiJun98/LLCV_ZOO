@@ -53,7 +53,7 @@ parser.add_argument('--eager_test', dest='eager_test', action='store_true',
                     help='debug only. test per 10 epochs during training')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
-parser.add_argument('--not_save', dest='save_flag', action='store_false',
+parser.add_argument('-d', '--debug', dest='save_flag', action='store_false',
                     help='if specified, logs won\'t be saved')
 
 def main():
@@ -111,7 +111,6 @@ def main():
             else:
                 loc = 'cuda:{}'.format(args.gpu)
                 checkpoint = torch.load(args.pretrained, map_location=loc)
-            start_epoch=best_psnr_epoch=best_ssim_epoch=best_loss_epoch = checkpoint['epoch']
             model.load_state_dict(checkpoint['state_dict'])
         else:
             logging.info("No checkpoint found at '{}', please check.".format(args.pretrained))

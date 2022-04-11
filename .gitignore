@@ -134,10 +134,5 @@ TrashBin/
 *.swp
 results/
 
-# Proj related
-dataset/SIDD
-dataset/Sony
-dataset/sampled_arch
+# proj-related files
 checkpoints/
-cleanedBAR/
-

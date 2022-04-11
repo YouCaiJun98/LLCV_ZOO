@@ -21,7 +21,7 @@ from natsort import natsorted
 from glob import glob
 class SIDD_sRGB_Train_DataLoader(Dataset):
     def __init__(self, path, length, patch_size, patched_input=False):
-        super(SIDD_Medium_sRGB_Train_DataLoader, self).__init__()
+        super(SIDD_sRGB_Train_DataLoader, self).__init__()
         assert length % 160 == 0, 'You should specify a proper length.'
 
         self.len            = length
@@ -55,7 +55,7 @@ class SIDD_sRGB_Train_DataLoader(Dataset):
         # read image
         noisy_img   = np.array(Image.open(self.noisy_imgs[index]))
         clean_img   = np.array(Image.open(self.clean_imgs[index]))
-        
+
         # random crop
         if self.patch_size:
             noisy_patch, clean_patch = crop_patches(noisy_img, clean_img,

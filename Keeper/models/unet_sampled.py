@@ -2,7 +2,12 @@ import torch
 import torch.nn as nn
 import math
 
-__all__ = ['LSID', 'lsid']
+__all__ = ['LSID', 'lsid', 'module_name']
+
+module_name = ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2', 'conv3_1', 'conv3_2',
+               'conv4_1', 'conv4_2', 'conv5_1', 'conv5_2', 'up6', 'conv6_1',
+               'conv6_2', 'up7', 'conv7_1', 'conv7_2', 'up8', 'conv8_1', 'conv8_2',
+               'up9', 'conv9_1', 'conv9_2']
 
 def pixel_shuffle(input, upscale_factor, depth_first=False):
     r"""Rearranges elements in a tensor of shape :math:`[*, C*r^2, H, W]` to a
@@ -46,44 +51,44 @@ class LSID(nn.Module):
         super(LSID, self).__init__()
         self.block_size = block_size
         self.outchannel = outchannel
-        assert type(ratio) is int, 'Channel multiplier should be an integer.'
+        # assert type(ratio) is int, 'Channel multiplier should be an integer.'
 
-        self.conv1_1 = nn.Conv2d(inchannel, 1*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv1_1 = nn.Conv2d(inchannel, 23, kernel_size=3, stride=1, padding=1, bias=True)
         self.lrelu =  nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.conv1_2 = nn.Conv2d(1*ratio, 1*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv1_2 = nn.Conv2d(23, 23, kernel_size=3, stride=1, padding=1, bias=True)
         self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, ceil_mode=True)
 
-        self.conv2_1 = nn.Conv2d(1*ratio, 2*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv2_2 = nn.Conv2d(2*ratio, 2*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv2_1 = nn.Conv2d(23, 45, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv2_2 = nn.Conv2d(45, 45, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv3_1 = nn.Conv2d(2*ratio, 4*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv3_2 = nn.Conv2d(4*ratio, 4*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv3_1 = nn.Conv2d(45, 90, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv3_2 = nn.Conv2d(90, 90, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv4_1 = nn.Conv2d(4*ratio, 8*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv4_2 = nn.Conv2d(8*ratio, 8*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv4_1 = nn.Conv2d(90, 180, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv4_2 = nn.Conv2d(180, 180, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv5_1 = nn.Conv2d(8*ratio,  16*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv5_2 = nn.Conv2d(16*ratio, 16*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv5_1 = nn.Conv2d(180, 360, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv5_2 = nn.Conv2d(360, 360, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up6 = nn.ConvTranspose2d(16*ratio, 8*ratio, 2, stride=2, bias=False)
-        self.conv6_1 = nn.Conv2d(16*ratio, 8*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv6_2 = nn.Conv2d(8*ratio,  8*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up6 = nn.ConvTranspose2d(360, 180, 2, stride=2, bias=False)
+        self.conv6_1 = nn.Conv2d(360, 180, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv6_2 = nn.Conv2d(180, 180, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up7 = nn.ConvTranspose2d(8*ratio, 4*ratio, 2, stride=2, bias=False)
-        self.conv7_1 = nn.Conv2d(8*ratio, 4*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv7_2 = nn.Conv2d(4*ratio, 4*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up7 = nn.ConvTranspose2d(180, 90, 2, stride=2, bias=False)
+        self.conv7_1 = nn.Conv2d(180, 90, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv7_2 = nn.Conv2d(90, 90, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up8 = nn.ConvTranspose2d(4*ratio, 2*ratio, 2, stride=2, bias=False)
-        self.conv8_1 = nn.Conv2d(4*ratio, 2*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv8_2 = nn.Conv2d(2*ratio, 2*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up8 = nn.ConvTranspose2d(90, 45, 2, stride=2, bias=False)
+        self.conv8_1 = nn.Conv2d(90, 45, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv8_2 = nn.Conv2d(45, 45, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up9 = nn.ConvTranspose2d(2*ratio, 1*ratio, 2, stride=2, bias=False)
-        self.conv9_1 = nn.Conv2d(2*ratio, 1*ratio, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv9_2 = nn.Conv2d(1*ratio, 1*ratio, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up9 = nn.ConvTranspose2d(45, 23, 2, stride=2, bias=False)
+        self.conv9_1 = nn.Conv2d(46, 23, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv9_2 = nn.Conv2d(23, 23, kernel_size=3, stride=1, padding=1, bias=True)
 
         # The old implementation seems to set out channels with the size of the Bayer Pattern
         out_channel = 3 * self.block_size * self.block_size if not self.outchannel else self.outchannel
-        self.conv10 = nn.Conv2d(1*ratio, out_channel, kernel_size=1, stride=1, padding=0, bias=True)
+        self.conv10 = nn.Conv2d(23, out_channel, kernel_size=1, stride=1, padding=0, bias=True)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -170,9 +175,9 @@ class LSID(nn.Module):
 
         return x # depth_to_space_conv
 
-def lsid(pretrained: bool=False, model_path: str=None, device=None,**kwargs):
+def lsid(model_path: str=None, device=None,**kwargs):
     model = LSID(**kwargs)
-    if pretrained and model_path:
+    if model_path:
         state_dict = torch.load(model_path, map_location=device)
         print(f'load pretrained checkpoint from: {model_path}')
         model.load_state_dict(state_dict)

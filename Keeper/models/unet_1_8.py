@@ -55,42 +55,42 @@ class LSID(nn.Module):
         self.init_channels = model_cfg['init_channels']
         assert type(self.init_channels) in [int, float], 'Number of Base Channel should be an integer or a float.'
 
-        self.conv1_1 = nn.Conv2d(self.in_channels, self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv1_1 = nn.Conv2d(self.in_channels, 4, kernel_size=3, stride=1, padding=1, bias=True)
         self.lrelu =  nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.conv1_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv1_2 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, bias=True)
         self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, ceil_mode=True)
 
-        self.conv2_1 = nn.Conv2d(self._ch(1), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv2_2 = nn.Conv2d(self._ch(2), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv2_1 = nn.Conv2d(4, 8, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv2_2 = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv3_1 = nn.Conv2d(self._ch(2), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv3_2 = nn.Conv2d(self._ch(4), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv3_1 = nn.Conv2d(8, 16, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv3_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv4_1 = nn.Conv2d(self._ch(4), self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv4_2 = nn.Conv2d(self._ch(8), self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv4_1 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv4_2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv5_1 = nn.Conv2d(self._ch(8),  self._ch(16), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv5_2 = nn.Conv2d(self._ch(16), self._ch(16), kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv5_1 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv5_2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up6 = nn.ConvTranspose2d(self._ch(16), self._ch(8), 2, stride=2, bias=False)
-        self.conv6_1 = nn.Conv2d(self._ch(8) + self._ch(8), self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv6_2 = nn.Conv2d(self._ch(8),  self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
+        self.up6 = nn.ConvTranspose2d(64, 32, 2, stride=2, bias=False)
+        self.conv6_1 = nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv6_2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up7 = nn.ConvTranspose2d(self._ch(8), self._ch(4), 2, stride=2, bias=False)
-        self.conv7_1 = nn.Conv2d(self._ch(4) + self._ch(4), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv7_2 = nn.Conv2d(self._ch(4), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
+        self.up7 = nn.ConvTranspose2d(32, 16, 2, stride=2, bias=False)
+        self.conv7_1 = nn.Conv2d(32, 16, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv7_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up8 = nn.ConvTranspose2d(self._ch(4), self._ch(2), 2, stride=2, bias=False)
-        self.conv8_1 = nn.Conv2d(self._ch(2) + self._ch(2), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv8_2 = nn.Conv2d(self._ch(2), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
+        self.up8 = nn.ConvTranspose2d(16, 8, 2, stride=2, bias=False)
+        self.conv8_1 = nn.Conv2d(16, 8, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv8_2 = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up9 = nn.ConvTranspose2d(self._ch(2), self._ch(1), 2, stride=2, bias=False)
-        self.conv9_1 = nn.Conv2d(self._ch(1) + self._ch(1), self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv9_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
+        self.up9 = nn.ConvTranspose2d(8, 4, 2, stride=2, bias=False)
+        self.conv9_1 = nn.Conv2d(8, 4, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv9_2 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, bias=True)
 
         # The old implementation seems to set out channels with the size of the Bayer Pattern
         out_channel = self.out_channels if self.out_channels else 3 * (self.block_size ** 2)
-        self.conv10 = nn.Conv2d(self._ch(1), out_channel, kernel_size=1, stride=1, padding=0, bias=True)
+        self.conv10 = nn.Conv2d(4, out_channel, kernel_size=1, stride=1, padding=0, bias=True)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

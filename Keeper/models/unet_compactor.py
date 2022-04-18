@@ -58,16 +58,20 @@ class LSID(nn.Module):
         self.conv1_1 = nn.Conv2d(self.in_channels, self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
         self.lrelu =  nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.conv1_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
+        self.compactor1_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=1, stride=1, padding=0, bias=True)
         self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, ceil_mode=True)
 
         self.conv2_1 = nn.Conv2d(self._ch(1), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv2_2 = nn.Conv2d(self._ch(2), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
+        self.compactor2_2 = nn.Conv2d(self._ch(2), self._ch(2), kernel_size=1, stride=1, padding=0, bias=True)
 
         self.conv3_1 = nn.Conv2d(self._ch(2), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv3_2 = nn.Conv2d(self._ch(4), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
+        self.compactor3_2 = nn.Conv2d(self._ch(4), self._ch(4), kernel_size=1, stride=1, padding=0, bias=True)
 
         self.conv4_1 = nn.Conv2d(self._ch(4), self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv4_2 = nn.Conv2d(self._ch(8), self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
+        self.compactor4_2 = nn.Conv2d(self._ch(8), self._ch(8), kernel_size=1, stride=1, padding=0, bias=True)
 
         self.conv5_1 = nn.Conv2d(self._ch(8),  self._ch(16), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv5_2 = nn.Conv2d(self._ch(16), self._ch(16), kernel_size=3, stride=1, padding=1, bias=True)
@@ -110,7 +114,7 @@ class LSID(nn.Module):
         x = self.lrelu(x)
         x = self.conv1_2(x)
         x = self.lrelu(x)
-        conv1 = x
+        conv1 = self.compactor1_2(x)
         x = self.maxpool(x)
 
 
@@ -118,21 +122,21 @@ class LSID(nn.Module):
         x = self.lrelu(x)
         x = self.conv2_2(x)
         x = self.lrelu(x)
-        conv2 = x
+        conv2 = self.compactor2_2(x)
         x = self.maxpool(x)
 
         x = self.conv3_1(x)
         x = self.lrelu(x)
         x = self.conv3_2(x)
         x = self.lrelu(x)
-        conv3 = x
+        conv3 = self.compactor3_2(x)
         x = self.maxpool(x)
 
         x = self.conv4_1(x)
         x = self.lrelu(x)
         x = self.conv4_2(x)
         x = self.lrelu(x)
-        conv4 = x
+        conv4 = self.compactor4_2(x)
         x = self.maxpool(x)
 
         x = self.conv5_1(x)

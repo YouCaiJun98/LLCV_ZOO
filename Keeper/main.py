@@ -15,6 +15,7 @@ import utils
 import models
 import datasets
 from utils.metric import calc_SSIM, calc_PSNR
+from utils.optimizer import adjust_learning_rate
 
 ### -------------------- Parser Zone  -------------------- ###
 parser = argparse.ArgumentParser("☆ Welcome to the ZOO of LLCV ☆")
@@ -45,7 +46,7 @@ def main():
                                             time.strftime("%Y%m%d-%H%M%S"))
         args.save_path = os.path.join(args.save_path, args.save_name)
         # scripts & configurations to be saved
-        save_list = ['main.py', 'models/unet.py']
+        save_list = ['main.py', 'models/unet_compactor.py', 'UNet_cfg.yaml']
         utils.create_exp_dir(args.save_path, scripts_to_save=save_list)
 
     # parse configurations
@@ -55,7 +56,8 @@ def main():
         model_cfg = cfg['model_settings']
     epochs = train_cfg['epochs']
     workers = train_cfg['workers']
-    init_lr = train_cfg['lr']
+    init_lr = train_cfg['init_lr']
+    lr_schedule = train_cfg['lr_schedule']
     grad_clip = train_cfg['grad_clip']
     batch_size = train_cfg['batch_size']
     patch_size = train_cfg['patch_size']
@@ -72,6 +74,7 @@ def main():
         torch.cuda.set_device(gpus[0]) # currently only single card is supported
         logging.info("Using GPU {}. Available gpu count: {}".format(gpus[0], torch.cuda.device_count()))
     else:
+        args.gpu_flag = False
         device = torch.device('cpu')
         logging.info("\033[1;3mWARNING: Using CPU!\033[0m")
 
@@ -141,6 +144,11 @@ def main():
             logging.info("Loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume, map_location=device)
             start_epoch=best_psnr_epoch=best_ssim_epoch=best_loss_epoch = checkpoint['epoch']
+
+            if 'total_params' in checkpoint['state_dict']:
+                checkpoint['state_dict'].pop('total_params')
+                checkpoint['state_dict'].pop('total_ops')
+
             model.load_state_dict(checkpoint['state_dict'])
         else:
             logging.info("No checkpoint found at '{}', please check.".format(args.resume))
@@ -152,7 +160,7 @@ def main():
     from thop import profile
     dummy_input = [torch.randn(1,3,256,256).cuda()]
     flops, params = profile(model, inputs=dummy_input, verbose=True)
-    
+
 
     if args.evaluate:
         # assert args.resume, "You should provide a checkpoint through args.resume."
@@ -163,9 +171,11 @@ def main():
 
     # training progress
     for epoch in range(0 if not start_epoch else start_epoch, epochs):
+        adjust_learning_rate(optimizer, epoch, lr_schedule)
         # train one epoch
         logging.info('Epoch [%d/%d]  lr: %e', epoch+1, epochs,
                      optimizer.state_dict()['param_groups'][0]['lr'])
+
         logging.info('<-Training Phase->')
 
         # train one epoch
@@ -204,12 +214,11 @@ def main():
             'loss': loss,
             'optimizer': optimizer.state_dict()}, best_names, args.save_path)
 
-        adjust_learning_rate(optimizer, epoch)
-
         logging.info('PSNR:%4f SSIM:%4f Loss:%4f / Best_PSNR:%4f Best_SSIM:%4f Best_Loss:%4f',
                      psnr, ssim, loss, best_psnr, best_ssim, best_loss)
     logging.info('BEST_LOSS(epoch):%6f(%d), BEST_PSNR(epoch):%6f(%d), BEST_SSIM(epoch):%6f(%d)',
                  best_loss, best_loss_epoch, best_psnr, best_psnr_epoch, best_ssim, best_ssim_epoch)
+
 
 def train(model, train_loader, criterion, optimizer, args, logging):
     Loss = utils.AverageMeter('Loss')
@@ -289,24 +298,6 @@ def infer(model, val_loader, criterion, args, logging):
 
     return PSNR.avg, SSIM.avg, Loss.avg
 
-def reduce_mean(tensor, nprocs):
-    rt = tensor.clone()
-    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
-    rt /= nprocs
-    return rt
-
-def adjust_learning_rate(optimizer, epoch):
-    """Sets multi-step LR scheduler."""
-    if epoch <= 20:
-        lr = 1e-4
-    elif epoch <= 40:
-        lr = 5e-5
-    elif epoch <= 60:
-        lr = 2.5e-5
-    else:
-        lr = 1.25e-5
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 if __name__ == '__main__':
     main()

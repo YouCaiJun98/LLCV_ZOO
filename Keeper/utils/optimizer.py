@@ -1,10 +1,16 @@
-def adjust_learning_rate(optimizer, epoch):
+from copy import deepcopy
+def adjust_learning_rate(optimizer, epoch, scheduler):
     """Sets multi-step LR scheduler."""
-    if epoch <= 100:
-        lr = 1e-4
-    elif epoch <= 180:
-        lr = 5e-5
-    else:
-        lr = 1e-5
+    scheduler = deepcopy(scheduler)
+    assert -1 in scheduler.keys(), "Default lr is not given!"
+    default_lr = scheduler.pop(-1)
+    milestones = [key for key in scheduler.keys()]
+    lr_list = [lr for lr in scheduler.values()]
+    for i, milestone in enumerate(milestones):
+        if epoch < milestone:
+            lr = lr_list[i]
+            break
+    if epoch >= milestones[-1]:
+        lr = default_lr
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr

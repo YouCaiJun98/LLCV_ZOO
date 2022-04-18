@@ -18,11 +18,11 @@ def default_conv(in_chs, out_chs, kernel_size, bias=True):
                      padding=(kernel_size//2), bias=bias)
 
 class ConvBNReLU(nn.Module):
-    def __init__(self, conv, in_feat, out_feat, kernel_size, bias=True, bn=False, act=nn.ReLU(True)):
+    def __init__(self, conv, in_feat, out_feat, kernel_size, bias=True, BN=False, act=nn.ReLU(True)):
         super(ConvBNReLU, self).__init__()
         m = []
         m.append(conv(in_feat,out_feat,kernel_size,bias=bias))
-        if bn:
+        if BN:
             m.append(nn.BatchNorm2d(out_feat))
         if act:
             m.append(act)
@@ -32,12 +32,12 @@ class ConvBNReLU(nn.Module):
         return self.body(x)
 
 class ResidualBlock(nn.Module):
-    def __init__(self, g, conv, in_feat, out_feat, kernel_size, bias=True, bn=False, act=nn.ReLU(True),
+    def __init__(self, g, conv, in_feat, out_feat, kernel_size, bias=True, BN=False, act=nn.ReLU(True),
                  res=True):
         super(ResidualBlock, self).__init__()
         self.res = res
         # In fact in_channels seems to always be the same as out_feat.
-        m = [ConvBNReLU(conv, in_feat, out_feat, kernel_size, bias, bn, act) for _ in range(g)]
+        m = [ConvBNReLU(conv, in_feat, out_feat, kernel_size, bias, BN, act) for _ in range(g)]
         # the last layer in the residual block has no activation functions.
         m.append(conv(in_feat, out_feat, kernel_size, bias))
         self.body = nn.Sequential(*m)
@@ -73,7 +73,7 @@ class SGN(nn.Module):
         elif hyper_params['act'] == 'relu':
             self.act = nn.ReLU(True)
 
-        self.bn = hyper_params['bn']
+        self.BN = hyper_params['BN']
 
         self.fusion = Concate()
 
@@ -83,38 +83,38 @@ class SGN(nn.Module):
 
         # basic block definition
         self.l3_head = ConvBNReLU(conv, self.in_channels * 64, self.init_channels * 8, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l3_body = ResidualBlock(self.g, conv, self.init_channels * 8, self.init_channels * 8, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l3_tail = ConvBNReLU(conv, self.init_channels * 8, self.init_channels * 8, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
 
         self.l2_head = ConvBNReLU(conv, self.in_channels * 16, self.init_channels * 4, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l2_merge= ConvBNReLU(conv, self.init_channels * 6, self.init_channels * 4, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l2_body = ResidualBlock(self.g, conv, self.init_channels * 4, self.init_channels * 4, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l2_tail = ConvBNReLU(conv, self.init_channels * 4, self.init_channels * 4, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
 
         self.l1_head = ConvBNReLU(conv, self.in_channels * 4, self.init_channels * 2, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l1_merge= ConvBNReLU(conv, self.init_channels * 3, self.init_channels * 2, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l1_body = ResidualBlock(self.g, conv, self.init_channels * 2, self.init_channels * 2, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l1_tail = ConvBNReLU(conv, self.init_channels * 2, self.init_channels * 2, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
 
         self.l0_head = ConvBNReLU(conv, self.in_channels, self.init_channels, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l0_merge= ConvBNReLU(conv, int(self.init_channels * 1.5), self.init_channels, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act)
+                                  bias=True, BN=self.BN, act=self.act)
         self.l0_body = ResidualBlock(self.m, conv, self.init_channels, self.init_channels, self.kernel_size,
-                                  bias=True, bn=self.bn, act=self.act, res=False)
+                                  bias=True, BN=self.BN, act=self.act, res=False)
         self.l0_tail = ConvBNReLU(conv, self.init_channels, self.out_channels, self.kernel_size,
-                                  bias=True, bn=False, act=None)
+                                  bias=True, BN=False, act=None)
 
         self.init_params()
 

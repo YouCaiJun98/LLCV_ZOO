@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 import utils
-from models.wrapper import BARStructuredWrapper
+from models.prune_wrapper import BARStructuredWrapper
 from models.unet import module_name
 
 def exp_progress_fn(p: float, a: float = 4.) -> float:
@@ -21,37 +21,6 @@ def sigmoid_progress_fn(p: float, a: float) -> float:
     sigmoid_progress = (sigmoid_progress - b) / (1. - 2. * b)
     return sigmoid_progress
 
-
-class DistillationLoss(nn.Module):
-    r"""
-    Distillation objective.
-
-    Args:
-        T (float): The temperature.
-        alpha (float): The coefficient to controll the trade-off between distillation loss and origin loss.
-    """
-    def __init__(self, T: float, alpha: float) -> None:
-        super(DistillationLoss, self).__init__()
-        self.T = T
-        self.alpha = alpha
-
-    def forward(self, output: Tensor, target: Tensor, label: Tensor) -> Tensor:
-        r"""
-        Args:
-            output (Tensor): Output of the network to be trained.
-            target (Tensor): Output of the teacher network.
-            label (Tensor): Label of the input.
-
-        Returns:
-            Tensor: The calculated loss.
-        """
-        p = F.softmax(target / self.T, dim = 1)
-        log_q = F.log_softmax(output / self.T, dim = 1)
-        entropy = - torch.sum(p * log_q, dim = 1)
-        kl = F.kl_div(log_q, p, reduction = "mean")
-        loss = torch.mean(entropy + kl)
-        return self.alpha * self.T ** 2 * loss + \
-                F.cross_entropy(output, label) * (1 - self.alpha)
 
 def get_previous_name(net:nn.Module, curr_name: str):
     r"""
@@ -165,7 +134,7 @@ class LatencyLoss(nn.Module):
         super(LatencyLoss, self).__init__()
         self.hwm = hardware_model.eval() # TODO debug: check whether this influence the gradient of hwm. 
 
-    def forward(self, model: nn.Module) -> Tensor:
+    def forward(self, model: nn.Module, mode: str = None) -> Tensor:
         sparsity_ratio = torch.zeros([1, 22]).to(utils.net_device(model))
         for name, m in model.named_modules():
             if isinstance(m, BARStructuredWrapper):
@@ -187,18 +156,15 @@ class BARStructuredLoss(nn.Module):
         epochs (int): Total pruning epochs.
         progress_func (str): Type of progress function ("sigmoid" or "exp"). Default: "sigmoid".
         _lambda (float): Coefficient for trade-off of sparsity loss term. Default: 1e-5.
-        distillation_temperature (float): Knowledge Distillation temperature. Default: 4.
-        distillation_alpha (float): Knowledge Distillation alpha. Default: 0.9.
         tolerance (float): Default: 0.01.
         margin (float): Parameter a in Eq. 5 of the paper. Default: 0.0001.
         sigmoid_a (float): Slope parameter of sigmoidal progress function. Default: 10.
         upper_bound (float): Default: 1e10.
     """
     def __init__(self, budget: float, epochs: int, progress_func: str = "sigmoid",
-                 budget_mode: str = "area", _lambda: float = 1e-5, distillation_temperature: float = 4.,
-                 distillation_alpha: float = 0.9, tolerance: float = 0.01, margin: float = 1e-4,
-                 sigmoid_a: float = 10., upper_bound: float = 1e10, hardware_model: nn.Module=None,
-                 ori_overhead: int = None) -> None:
+                 budget_mode: str = "area", _lambda: float = 1e-5, tolerance: float = 0.01,
+                 margin: float = 1e-4, sigmoid_a: float = 10., upper_bound: float = 1e10,
+                 hardware_model: nn.Module=None, ori_overhead: int = None) -> None:
         super(BARStructuredLoss, self).__init__()
         assert budget_mode in ['area', 'flops', 'latency'], \
             "Specified budget type {} is unsupported.".format(budget_mode)
@@ -207,12 +173,6 @@ class BARStructuredLoss(nn.Module):
         self.epochs = epochs
         self.hardware_model = hardware_model
 
-        '''
-        # distillation hyperparameters
-        self.distillation_alpha = distillation_alpha
-        self.distillation_temperature = distillation_temperature
-        '''
-
         self.progress_func = progress_func
         self.sigmoid_a = sigmoid_a
         self.tolerance = tolerance
@@ -220,8 +180,8 @@ class BARStructuredLoss(nn.Module):
 
         self._lambda = _lambda
         self.margin = margin
-        # TODO: check how to implement distill loss here.
-        # self.distill_criterion = DistillationLoss(distillation_temperature, distillation_alpha)
+
+        # TODO: merge distillation loss here
         self.pixel_criterion = nn.L1Loss()
         self.budget_criterion = BudgetLoss() if self.mode != 'latency' else \
                                 LatencyLoss(hardware_model)
@@ -231,7 +191,7 @@ class BARStructuredLoss(nn.Module):
         else:
             self._origin_overhead = None
 
-    def forward(self, output: Tensor, target: Tensor, 
+    def forward(self, output: Tensor, target: Tensor,
             net: nn.Module, current_epoch_fraction: float) -> Tensor:
         r"""
         Calculate the objective.
@@ -241,7 +201,6 @@ class BARStructuredLoss(nn.Module):
             output (Tensor): Output image.
             target (Tensor): Label of the image,
             net (nn.Module): The network to be updated.
-            Currently Removed - teacher (nn.Module): Teacher network for distillation.
             current_epoch_fraction (float): Current epoch fraction.
 
         Returns:
@@ -250,16 +209,8 @@ class BARStructuredLoss(nn.Module):
         # Step 1: Calculate the L1 loss.
         pixel_loss = self.pixel_criterion(output, target)
 
-        # Step 2: Calculate the Distillation Loss.
-        '''
-        with torch.no_grad():
-            teacher_output = teacher(input)
-        classification_loss = self.classification_criterion(output, teacher_output, target)
-        '''
-
         # Step 3: Calculate the budget loss.
-        budget_loss = self.budget_criterion(net, self.mode) if self.mode != 'latency' \
-            else self.budget_criterion(net)
+        budget_loss = self.budget_criterion(net, self.mode)
 
         # Step 4: Calculate the coefficient of the budget loss.
         current_overhead = self.current_overhead(net, self.mode)

@@ -214,4 +214,4 @@ def sgn(cfgs, ckpt_path: str=None, device=None):
         ckpt = torch.load(ckpt_path, map_location=device)
         print(f'load pretrained checkpoint from: {ckpt_path}')
         model.load_state_dict(ckpt['state_dict'])
-    return SGN(cfgs)
+    return model

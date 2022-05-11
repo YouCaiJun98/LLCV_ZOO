@@ -64,7 +64,7 @@ def main():
                                             time.strftime("%Y%m%d-%H%M%S"))
         args.save_path = os.path.join(args.save_path, args.save_name)
         # scripts & configurations to be saved
-        save_list = ['qmain.py', 'utils/optimizer.py', 'models/unet_variant.py']
+        save_list = ['models/unet_compactor.py'] + [__file__] + [args.cfg_file]
         utils.create_exp_dir(args.save_path, scripts_to_save=save_list)
 
     # get info logger

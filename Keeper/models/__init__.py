@@ -1,4 +1,3 @@
-# from .unet import *
-from .unet_variant7 import *
+from .unet_compactor import *
 from .MPRNet import *
 

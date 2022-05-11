@@ -53,25 +53,22 @@ class LSID(nn.Module):
         self.in_channels = model_cfg['in_channels']
         self.out_channels = model_cfg['out_channels']
         self.init_channels = model_cfg['init_channels']
+        self.compactor = model_cfg['compactor']
         assert type(self.init_channels) in [int, float], 'Number of Base Channel should be an integer or a float.'
 
         self.conv1_1 = nn.Conv2d(self.in_channels, self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
         self.lrelu =  nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.conv1_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
-        self.compactor1_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=1, stride=1, padding=0, bias=True)
         self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, ceil_mode=True)
 
         self.conv2_1 = nn.Conv2d(self._ch(1), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv2_2 = nn.Conv2d(self._ch(2), self._ch(2), kernel_size=3, stride=1, padding=1, bias=True)
-        self.compactor2_2 = nn.Conv2d(self._ch(2), self._ch(2), kernel_size=1, stride=1, padding=0, bias=True)
 
         self.conv3_1 = nn.Conv2d(self._ch(2), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv3_2 = nn.Conv2d(self._ch(4), self._ch(4), kernel_size=3, stride=1, padding=1, bias=True)
-        self.compactor3_2 = nn.Conv2d(self._ch(4), self._ch(4), kernel_size=1, stride=1, padding=0, bias=True)
 
         self.conv4_1 = nn.Conv2d(self._ch(4), self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv4_2 = nn.Conv2d(self._ch(8), self._ch(8), kernel_size=3, stride=1, padding=1, bias=True)
-        self.compactor4_2 = nn.Conv2d(self._ch(8), self._ch(8), kernel_size=1, stride=1, padding=0, bias=True)
 
         self.conv5_1 = nn.Conv2d(self._ch(8),  self._ch(16), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv5_2 = nn.Conv2d(self._ch(16), self._ch(16), kernel_size=3, stride=1, padding=1, bias=True)
@@ -96,6 +93,12 @@ class LSID(nn.Module):
         out_channel = self.out_channels if self.out_channels else 3 * (self.block_size ** 2)
         self.conv10 = nn.Conv2d(self._ch(1), out_channel, kernel_size=1, stride=1, padding=0, bias=True)
 
+        if self.compactor:
+            self.compactor1_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=1, stride=1, padding=0, bias=True)
+            self.compactor2_2 = nn.Conv2d(self._ch(2), self._ch(2), kernel_size=1, stride=1, padding=0, bias=True)
+            self.compactor3_2 = nn.Conv2d(self._ch(4), self._ch(4), kernel_size=1, stride=1, padding=0, bias=True)
+            self.compactor4_2 = nn.Conv2d(self._ch(8), self._ch(8), kernel_size=1, stride=1, padding=0, bias=True)
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -114,7 +117,7 @@ class LSID(nn.Module):
         x = self.lrelu(x)
         x = self.conv1_2(x)
         x = self.lrelu(x)
-        conv1 = self.compactor1_2(x)
+        conv1 = self.compactor1_2(x) if self.compactor else x
         x = self.maxpool(x)
 
 
@@ -122,21 +125,21 @@ class LSID(nn.Module):
         x = self.lrelu(x)
         x = self.conv2_2(x)
         x = self.lrelu(x)
-        conv2 = self.compactor2_2(x)
+        conv2 = self.compactor2_2(x) if self.compactor else x
         x = self.maxpool(x)
 
         x = self.conv3_1(x)
         x = self.lrelu(x)
         x = self.conv3_2(x)
         x = self.lrelu(x)
-        conv3 = self.compactor3_2(x)
+        conv3 = self.compactor3_2(x) if self.compactor else x
         x = self.maxpool(x)
 
         x = self.conv4_1(x)
         x = self.lrelu(x)
         x = self.conv4_2(x)
         x = self.lrelu(x)
-        conv4 = self.compactor4_2(x)
+        conv4 = self.compactor4_2(x) if self.compactor else x
         x = self.maxpool(x)
 
         x = self.conv5_1(x)

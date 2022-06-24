@@ -19,7 +19,7 @@ from utils.optimizer import adjust_learning_rate
 
 ### -------------------- Parser Zone  -------------------- ###
 parser = argparse.ArgumentParser("☆ Welcome to the ZOO of LLCV ☆")
-parser.add_argument('-a', '--arch', metavar='ARCH', default='lsid')
+parser.add_argument('-a', '--arch', metavar='ARCH', default='memnet')
 parser.add_argument('--root', type=str, default='./datasets/SIDD/SIDD_patches/', help='root location of the data corpus')
 parser.add_argument('--save_name', type=str, default='HE_valid', help='experiment name')
 parser.add_argument('--save_path', type=str, default='./checkpoints', help='parent path for saved experiments')
@@ -46,7 +46,7 @@ def main():
                                             time.strftime("%Y%m%d-%H%M%S"))
         args.save_path = os.path.join(args.save_path, args.save_name)
         # scripts & configurations to be saved
-        save_list = ['models/unet_compactor.py'] + [__file__] + [args.configuration]
+        save_list = ['models/MemNet.py'] + [__file__] + [args.configuration]
         utils.create_exp_dir(args.save_path, scripts_to_save=save_list)
 
     # parse configurations
@@ -143,7 +143,7 @@ def main():
         if os.path.isfile(args.resume):
             logging.info("Loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume, map_location=device)
-            # start_epoch=best_psnr_epoch=best_ssim_epoch=best_loss_epoch = checkpoint['epoch']
+            start_epoch=best_psnr_epoch=best_ssim_epoch=best_loss_epoch = checkpoint['epoch']
 
             if 'total_params' in checkpoint['state_dict']:
                 checkpoint['state_dict'].pop('total_params')
@@ -155,12 +155,12 @@ def main():
             return
 
     # Clear these out
-    #'''
+    '''
     import ipdb; ipdb.set_trace()
     from thop import profile
     dummy_input = [torch.randn(1,3,256,256).cuda()]
     flops, params = profile(model, inputs=dummy_input, verbose=True)
-    #'''
+    '''
 
     if args.evaluate:
         # assert args.resume, "You should provide a checkpoint through args.resume."

@@ -114,8 +114,8 @@ def main():
     val_data   = datasets.SID_Sony(args.root, img_list_files[1], patch_size=None, data_aug=False, stage_in='raw', stage_out='sRGB', gt_png=True)
     test_data  = datasets.SID_Sony(args.root, img_list_files[2], patch_size=None, data_aug=False, stage_in='raw', stage_out='sRGB', gt_png=True)
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, num_workers=workers, pin_memory=True, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_data, batch_size=1, num_workers=workers, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1, num_workers=workers, pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(val_data, batch_size=8, num_workers=workers, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=8, num_workers=workers, pin_memory=True)
 
     '''
     # SIDD only
@@ -170,12 +170,12 @@ def main():
             return
 
     # Clear these out
-    '''
+    # '''
     import ipdb; ipdb.set_trace()
     from thop import profile
-    dummy_input = [torch.randn(1,3,256,256).cuda()]
+    dummy_input = [torch.randn(1, 4, 1424, 2128).cuda()]
     flops, params = profile(model, inputs=dummy_input, verbose=True)
-    '''
+    # '''
 
     if args.evaluate:
         # assert args.resume, "You should provide a checkpoint through args.resume."

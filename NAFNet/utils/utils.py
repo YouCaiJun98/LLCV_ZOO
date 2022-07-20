@@ -6,16 +6,6 @@ import shutil
 import torch
 
 def get_logger(args):
-    if args.slave:
-        class Dumb_Logger:
-            def __getattr__(self, *args):
-                def no_op(*args, **kwargs):
-                    """Accept every signature by doing non-operation."""
-                    pass
-
-                return no_op
-        dumb_logger = Dumb_Logger()
-        return dumb_logger
     log_format = "%(asctime)s %(message)s"
     logging.basicConfig(
         stream=sys.stdout,
@@ -24,7 +14,7 @@ def get_logger(args):
         datefmt='%m/%d %I:%M:%S %p')
     logger = logging.getLogger()
     if args.save_flag:
-        file_handler = logging.FileHandler(os.path.join(args.save_path, "test.log" if
+        file_handler = logging.FileHandler(os.path.join(args.save_path, "test.log" if 
                                                         args.evaluate else "train.log"))
         file_handler.setFormatter(logging.Formatter(log_format))
         logger.addHandler(file_handler)
@@ -92,12 +82,6 @@ def save_checkpoint(state:dir, best_names:str, save_dir:str, filename='checkpoin
         for best_name in best_names:
             best_path = os.path.join(save_dir, best_name)
             shutil.copyfile(save_path, best_path)
-
-import cv2
-def save_img(filepath, img):
-    cv2.imwrite(filepath, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-
-
 
 from collections import OrderedDict
 def get_state_dict(checkpoint):

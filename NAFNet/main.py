@@ -5,7 +5,6 @@ import time
 import math
 import yaml
 import random
-import pickle
 import argparse
 import numpy as np
 
@@ -46,8 +45,7 @@ def main():
         args.save_name = '{}-{}-{}'.format(args.save_name, 'test' if args.evaluate else 'train',
                                             time.strftime("%Y%m%d-%H%M%S"))
         args.save_path = os.path.join(args.save_path, args.save_name)
-        # scripts & configurations to be saved
-        save_list = ['models/unet.py'] + [__file__] + [args.configuration]
+        save_list = ['models/nafnet.py'] + [__file__] + [args.configuration]
         utils.create_exp_dir(args.save_path, scripts_to_save=save_list)
 
     # parse configurations
@@ -106,17 +104,17 @@ def main():
 
     optimizer = torch.optim.Adam(model.parameters(), init_lr)
 
-    # SID-Sony only
     '''
-    img_list_files = ['./datasets/Sony/Sony_train_png.txt',
-                      './datasets/Sony/Sony_val_png.txt',
-                      './datasets/Sony/Sony_test_png.txt']
-    train_data = datasets.SID_Sony(args.root, img_list_files[0], patch_size=patch_size,  data_aug=True,  stage_in='raw', stage_out='sRGB', gt_png=True)
-    val_data   = datasets.SID_Sony(args.root, img_list_files[1], patch_size=None, data_aug=False, stage_in='raw', stage_out='sRGB', gt_png=True)
-    test_data  = datasets.SID_Sony(args.root, img_list_files[2], patch_size=None, data_aug=False, stage_in='raw', stage_out='sRGB', gt_png=True)
+    # SID-Sony only
+    img_list_files = ['./datasets/Sony/Sony_train_list.txt',
+                      './datasets/Sony/Sony_val_list.txt',
+                      './datasets/Sony/Sony_test_list.txt']
+    train_data = datasets.SID_Sony(args.dataset, img_list_files[0], patch_size=args.patch_size,  data_aug=True,  stage_in='raw', stage_out='raw')
+    val_data   = datasets.SID_Sony(args.dataset, img_list_files[1], patch_size=None, data_aug=False, stage_in='raw', stage_out='raw')
+    test_data  = datasets.SID_Sony(args.dataset, img_list_files[2], patch_size=None, data_aug=False, stage_in='raw', stage_out='raw')
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, num_workers=workers, pin_memory=True, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_data, batch_size=8, num_workers=workers, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=8, num_workers=workers, pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(val_data, batch_size=1, num_workers=workers, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=1, num_workers=workers, pin_memory=True)
     '''
 
     # SIDD only
@@ -130,7 +128,6 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_data, shuffle=True,  **Loader_Settings)
     val_loader = torch.utils.data.DataLoader(val_data, shuffle=False, **Loader_Settings)
     test_loader  = torch.utils.data.DataLoader(test_data,  shuffle=False, **Loader_Settings)
-    #'''
 
     start_epoch = 0
     best_psnr = 0
@@ -144,39 +141,20 @@ def main():
     if args.resume:
         if os.path.isfile(args.resume):
             logging.info("Loading checkpoint '{}'".format(args.resume))
-            if args.resume.endswith('pkl'):
-                with open(args.resume, 'rb') as f:
-                    weights = pickle.load(f, encoding='latin1')
-                own_state = model.state_dict()
-                for name, param in weights.items():
-                    if name in own_state:
-                        try:
-                            own_state[name].copy_(torch.from_numpy(param))
-                        except Exception:
-                            raise RuntimeError('While copying the parameter named {}, whose dimensions in the model are {} and whose '\
-                                               'dimensions in the checkpoint are {}.'.format(name, own_state[name].size(), param.size()))
-                    else:
-                        raise KeyError('unexpected key "{}" in state_dict'.format(name))
-            else:
-                checkpoint = torch.load(args.resume, map_location=device)
-                start_epoch=best_psnr_epoch=best_ssim_epoch=best_loss_epoch = checkpoint['epoch']
-
-                if 'total_params' in checkpoint['state_dict']:
-                    checkpoint['state_dict'].pop('total_params')
-                    checkpoint['state_dict'].pop('total_ops')
-
-                model.load_state_dict(checkpoint['state_dict'])
+            checkpoint = torch.load(args.resume, map_location=device)
+            start_epoch=best_psnr_epoch=best_ssim_epoch=best_loss_epoch = checkpoint['epoch']
+            model.load_state_dict(checkpoint['state_dict'])
         else:
             logging.info("No checkpoint found at '{}', please check.".format(args.resume))
             return
 
     # Clear these out
-    # '''
-    from thop import profile
+    '''
     import ipdb; ipdb.set_trace()
-    dummy_input = [torch.randn(1, 3, 256, 256).cuda()]
+    from thop import profile
+    dummy_input = [torch.randn(1,3,256,256).cuda()]
     flops, params = profile(model, inputs=dummy_input, verbose=True)
-    # '''
+    '''
 
     if args.evaluate:
         # assert args.resume, "You should provide a checkpoint through args.resume."
@@ -186,13 +164,14 @@ def main():
         return
 
     # training progress
-    for epoch in range(1 if not start_epoch else start_epoch, epochs+1):
+    for epoch in range(0 if not start_epoch else start_epoch, epochs):
         adjust_learning_rate(optimizer, epoch, lr_schedule)
         # train one epoch
-        logging.info('Epoch [%d/%d]  lr: %e', epoch, epochs,
+        logging.info('Epoch [%d/%d]  lr: %e', epoch+1, epochs,
                      optimizer.state_dict()['param_groups'][0]['lr'])
 
         logging.info('<-Training Phase->')
+
         # train one epoch
         train(model, train_loader, criterion, optimizer, args, logging)
 
@@ -210,19 +189,19 @@ def main():
         best_names = []
         if psnr > best_psnr and not math.isinf(psnr):
             best_names.append('best_psnr.pth.tar')
-            best_psnr_epoch = epoch
+            best_psnr_epoch = epoch + 1
             best_psnr = psnr
         if ssim > best_ssim:
             best_names.append('best_ssim.pth.tar')
-            best_ssim_epoch = epoch
+            best_ssim_epoch = epoch + 1
             best_ssim = ssim
         if loss < best_loss:
             best_names.append('best_loss.pth.tar')
-            best_loss_epoch = epoch
+            best_loss_epoch = epoch + 1
             best_loss = loss
         if args.save_flag:
             utils.save_checkpoint({
-            'epoch': epoch,
+            'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'psnr': psnr,
             'ssim': ssim,
@@ -248,7 +227,6 @@ def train(model, train_loader, criterion, optimizer, args, logging):
     end = time.time()
 
     for step, (inputs, targets) in enumerate(train_loader):
-        batch_size = inputs.size(0)
         inputs, targets = inputs.cuda(), targets.cuda()
         outputs = model(inputs)
         loss = criterion(outputs, targets)
@@ -263,10 +241,10 @@ def train(model, train_loader, criterion, optimizer, args, logging):
             ssim = calc_SSIM(torch.clamp(outputs,0,1), targets)
 
         # display
-        Loss.update(loss.item(), batch_size)
+        Loss.update(loss.item(), inputs.size(0))
         Batch_time.update(time.time() - end)
-        PSNR.update(psnr, batch_size)
-        SSIM.update(ssim, batch_size)
+        PSNR.update(psnr, inputs.size(0))
+        SSIM.update(ssim, inputs.size(0))
         end = time.time()
 
         if args.print_freq is not None and step % args.print_freq == 0:
@@ -290,16 +268,16 @@ def infer(model, val_loader, criterion, args, logging):
     model.eval()
     with torch.no_grad():
         for batch, (inputs, targets) in enumerate(val_loader):
-            batch_size = inputs.size(0)
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs = model(inputs)
 
             loss = criterion(outputs, targets)
             ssim = calc_SSIM(torch.clamp(outputs,0,1), targets)
             psnr = calc_PSNR(outputs, targets)
-            PSNR.update(psnr, batch_size)
-            SSIM.update(ssim, batch_size)
-            Loss.update(loss.item(), batch_size)
+            n = inputs.size(0)
+            PSNR.update(psnr, n)
+            SSIM.update(ssim, n)
+            Loss.update(loss.item(), n)
             Batch_time.update(time.time() - end)
             end = time.time()
 

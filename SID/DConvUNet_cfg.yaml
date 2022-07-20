@@ -1,21 +1,21 @@
 model_settings:
     in_channels: 3
     out_channels: 3
-    init_channels: 32
-    block_size: 2
-    compactor: False
+    width: 32
+    block_size: 4
+    res_connect: conv
+    head: True
 
 training_settings:
-    gpu: 6,7
-    seed: 3
-    epochs: 80
+    seed: 54
+    epochs: 200
     batch_size: 32
     patch_size: 256
-    workers: 4
+    workers: 6
     init_lr: 1.e-4
     lr_schedule:
-        20: 1.e-4
-        40: 5.e-5
-        60: 2.5e-5
+        100: 1.e-4
+        160: 5.e-5
+        180: 2.5e-5
         -1: 1.e-5
     grad_clip: 5

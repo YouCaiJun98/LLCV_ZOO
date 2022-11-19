@@ -12,7 +12,7 @@ def crop_patch(im, patch_size, gray=False, rnd=None):
         im = np.pad(im, (0, 0, W_pad, H_pad), 'reflect')
         H = im.shape[0]
         W = im.shape[1]
-    
+
     if rnd:
         (rnd_H, rnd_W) = rnd
     else:
@@ -37,7 +37,7 @@ def crop_patches(im1, im2, patch_size, gray=False):
 
     patch1 = crop_patch(im1, patch_size, gray, rand)
     patch2 = crop_patch(im2, patch_size, gray, rand)
-    
+
     return patch1, patch2
 
 # Needs TorchVision Implementation
@@ -140,3 +140,6 @@ def image_show(x, title=None, cbar=False, figsize=None,
     if cbar:
         plt.colorbar()
     plt.show()
+
+
+

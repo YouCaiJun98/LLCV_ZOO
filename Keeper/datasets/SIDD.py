@@ -75,14 +75,14 @@ class SIDD_sRGB_Train_DataLoader(Dataset):
 # could download patched val data from https://drive.google.com/drive/folders/1S44fHXaVxAYW3KLNxK41NYCnyX9S79su
 # If the full dataset is found, this class could be extended to support full graph/any patched size input.
 class SIDD_sRGB_Val_DataLoader(Dataset):
-    def __init__(self, path, patch_size=None):
+    def __init__(self, path, patch_size=None, return_name=False):
         super(SIDD_sRGB_Val_DataLoader, self).__init__()
         self.noisy_imgs = natsorted(glob(os.path.join(path, 'input', '*.png')))
         self.clean_imgs = natsorted(glob(os.path.join(path, 'target', '*.png')))
         self.length     = len(self.noisy_imgs)
         self.patch_size = patch_size
         self.transform  = torchvision.transforms.ToTensor()
-        self.return_name= False
+        self.return_name= return_name
 
     def __len__(self):
         return self.length
@@ -93,12 +93,13 @@ class SIDD_sRGB_Val_DataLoader(Dataset):
         noisy_patch = np.array(Image.open(self.noisy_imgs[index]))
         clean_patch = np.array(Image.open(self.clean_imgs[index]))
 
+        noisy_patch, clean_patch = self.transform(noisy_patch), \
+                                   self.transform(clean_patch)
+
         if self.patch_size:
             noisy_patch = F.center_crop(noisy_patch, (self.patch_size, self.patch_size))
             clean_patch = F.center_crop(clean_patch, (self.patch_size, self.patch_size))
 
-        noisy_patch, clean_patch = self.transform(noisy_patch), \
-                                   self.transform(clean_patch)
         filename = os.path.splitext(os.path.split(self.clean_imgs[index])[-1])[0]
 
         if self.return_name:

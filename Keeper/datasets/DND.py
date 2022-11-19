@@ -81,7 +81,7 @@ parser = argparse.ArgumentParser("☆ Denoising Evaluation on DND ☆")
 parser.add_argument('-a', '--arch', metavar='ARCH', default='lsid')
 parser.add_argument('--root', type=str, default='./datasets/DND/', help='root location of the dataset.')
 parser.add_argument('--save_path', type=str, default='./dnd_results', help='parent path for saved dnd results.')
-parser.add_argument('--gpu', type=str, help='gpu device ids.')
+parser.add_argument('--gpu', default='6', type=str, help='gpu device ids.')
 parser.add_argument('--resume', type=str, required=True,
                     help='checkpoint path of previous model.')
 parser.add_argument('-c', '--configuration', required=True, help='model & validation settings.')
@@ -94,7 +94,7 @@ parser.add_argument('--save_img', action='store_true',
 
 def main():
     args = parser.parse_args()
-
+    args.slave = None
     # create save path
     if args.save_flag:
         # create dir for saving results

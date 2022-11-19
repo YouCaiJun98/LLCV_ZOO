@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
-__all__ = ['LSID', 'lsid', 'module_name']
+__all__ = ['LSID', 'unet', 'module_name']
 
 module_name = ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2', 'conv3_1', 'conv3_2',
                'conv4_1', 'conv4_2', 'conv5_1', 'conv5_2', 'up6', 'conv6_1',
@@ -52,7 +52,7 @@ class LSID(nn.Module):
         self.block_size = model_cfg['block_size']
         self.in_channels = model_cfg['in_channels']
         self.out_channels = model_cfg['out_channels']
-        self.init_channels = model_cfg['init_channels']
+        self.init_channels = model_cfg['width']
         assert type(self.init_channels) in [int, float], 'Number of Base Channel should be an integer or a float.'
 
         self.conv1_1 = nn.Conv2d(self.in_channels, self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
@@ -92,14 +92,20 @@ class LSID(nn.Module):
         out_channel = self.out_channels if self.out_channels else 3 * (self.block_size ** 2)
         self.conv10 = nn.Conv2d(self._ch(1), out_channel, kernel_size=1, stride=1, padding=0, bias=True)
 
+        self.init_parameters()
+
+    def init_parameters(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
-                m.bias.data.zero_()
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.ConvTranspose2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def _ch(self, width):
         ch = width * self.init_channels
@@ -181,7 +187,7 @@ class LSID(nn.Module):
 
         return x # depth_to_space_conv
 
-def lsid(model_cfg, model_path: str=None, device=None):
+def unet(model_cfg, model_path: str=None, device=None):
     model = LSID(model_cfg)
     if model_path:
         state_dict = torch.load(model_path, map_location=device)

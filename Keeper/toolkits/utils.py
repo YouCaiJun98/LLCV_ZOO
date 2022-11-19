@@ -31,16 +31,20 @@ def get_logger(args):
     logger.info("Conducting Command: %s", " ".join(sys.argv))
     return logger
 
+
 def create_exp_dir(path, scripts_to_save=None):
     if not os.path.exists(path):
         os.makedirs(path)
     print('Experiment dir : {}'.format(path))
 
     if scripts_to_save is not None:
-        os.mkdir(os.path.join(path, 'scripts'))
-        for script in scripts_to_save:
-             dst_file = os.path.join(path, 'scripts', os.path.basename(script))
-             shutil.copyfile(script, dst_file)
+        scripts_path = os.path.join(path, 'scripts')
+        if not os.path.exists(scripts_path):
+            os.mkdir(scripts_path)
+            for script in scripts_to_save:
+                dst_file = os.path.join(path, 'scripts', os.path.basename(script))
+                shutil.copyfile(script, dst_file)
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

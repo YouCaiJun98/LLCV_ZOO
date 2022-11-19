@@ -133,3 +133,7 @@ dmypy.json
 TrashBin/
 *.swp
 results/
+
+# repo related
+scripts/ood/
+

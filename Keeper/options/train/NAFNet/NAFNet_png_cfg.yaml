@@ -1,0 +1,85 @@
+exp_name: NAFNet_SIDD_width32
+
+model_settings:
+    type: nafnet
+    in_channels: 3
+    out_channels: 3
+    width: 32
+    encoder_block: [2, 2, 4, 8]
+    decoder_block: [2, 2, 2, 2]
+    middle_block: 12
+    res_connect: skip
+    long_connect: add
+    head: True
+
+
+train_settings:
+    gpu: 4,5,6,7
+    seed: 13
+    trainer_type: iter
+    grad_clip: 0.1
+
+    optim:
+        type: AdamW
+        lr: !!float 1e-3
+        weight_decay: 0.
+        betas: [0.9, 0.9]
+    
+    scheduler:
+        type: CosineAnnealingLR
+        T_max: 200000
+        eta_min: !!float 1e-7
+
+    train_len: 200000
+    warmup_len: -1
+    save_ckpt_freq: !!float 5e3    
+
+    loss:
+        type: PSNRLoss
+        loss_weight: 1
+        reduction: mean
+
+    datasets:
+        train:
+            # data type and root
+            name: SIDD
+            type: PairedImageDataset
+
+            io_backend: 
+                type: lmdb
+            filename_tmpl: '{}'
+ 
+            dataroot_lq: ./datasets/SIDD/train/input_crops.lmdb
+            dataroot_gt: ./datasets/SIDD/train/gt_crops.lmdb
+
+            # data preprocess
+            gt_size: 256
+            use_flip: false
+            use_rot:  false
+
+            # dataloader
+            use_shuffle: True
+            num_worker_per_gpu: 4
+            batch_size_per_gpu: 8
+            dataset_enlarge_ratio: 1
+            prefetch_mode: ~ 
+
+        val:
+            name: SIDD_val
+            type: PairedImageDataset
+            io_backend: 
+                type: lmdb
+            dataroot_lq: ./datasets/SIDD/val/input_crops.lmdb
+            dataroot_gt: ./datasets/SIDD/val/gt_crops.lmdb
+
+        test:
+            name: SIDD_val
+            type: PairedImageDataset
+            io_backend: 
+                type: lmdb
+            dataroot_lq: ./datasets/SIDD/val/input_crops.lmdb
+            dataroot_gt: ./datasets/SIDD/val/gt_crops.lmdb
+
+display:
+    print_freq: 10
+

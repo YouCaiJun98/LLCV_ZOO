@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
-__all__ = ['LSID', 'lsid', 'module_name']
+__all__ = ['LSID', 'unet', 'module_name']
 
 module_name = ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2', 'conv3_1', 'conv3_2',
                'conv4_1', 'conv4_2', 'conv5_1', 'conv5_2', 'up6', 'conv6_1',
@@ -52,54 +52,60 @@ class LSID(nn.Module):
         self.block_size = model_cfg['block_size']
         self.in_channels = model_cfg['in_channels']
         self.out_channels = model_cfg['out_channels']
-        self.init_channels = model_cfg['init_channels']
+        self.init_channels = model_cfg['width']
         assert type(self.init_channels) in [int, float], 'Number of Base Channel should be an integer or a float.'
 
-        self.conv1_1 = nn.Conv2d(self.in_channels, 4, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv1_1 = nn.Conv2d(self.in_channels, 22, kernel_size=3, stride=1, padding=1, bias=True)
         self.lrelu =  nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.conv1_2 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv1_2 = nn.Conv2d(22, 24, kernel_size=3, stride=1, padding=1, bias=True)
         self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, ceil_mode=True)
 
-        self.conv2_1 = nn.Conv2d(4, 8, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv2_2 = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv2_1 = nn.Conv2d(24, 47, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv2_2 = nn.Conv2d(47, 41, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv3_1 = nn.Conv2d(8, 16, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv3_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv3_1 = nn.Conv2d(41, 95, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv3_2 = nn.Conv2d(95, 94, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv4_1 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv4_2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv4_1 = nn.Conv2d(94, 187, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv4_2 = nn.Conv2d(187, 190, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.conv5_1 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv5_2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv5_1 = nn.Conv2d(190,  390, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv5_2 = nn.Conv2d(390, 376, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up6 = nn.ConvTranspose2d(64, 32, 2, stride=2, bias=False)
-        self.conv6_1 = nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv6_2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up6 = nn.ConvTranspose2d(376, 156, 2, stride=2, bias=False)
+        self.conv6_1 = nn.Conv2d(346, 196, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv6_2 = nn.Conv2d(196, 204, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up7 = nn.ConvTranspose2d(32, 16, 2, stride=2, bias=False)
-        self.conv7_1 = nn.Conv2d(32, 16, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv7_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up7 = nn.ConvTranspose2d(204, 81, 2, stride=2, bias=False)
+        self.conv7_1 = nn.Conv2d(175, 93, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv7_2 = nn.Conv2d(93, 98, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up8 = nn.ConvTranspose2d(16, 8, 2, stride=2, bias=False)
-        self.conv8_1 = nn.Conv2d(16, 8, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv8_2 = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up8 = nn.ConvTranspose2d(98, 40, 2, stride=2, bias=False)
+        self.conv8_1 = nn.Conv2d(81, 48, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv8_2 = nn.Conv2d(48, 42, kernel_size=3, stride=1, padding=1, bias=True)
 
-        self.up9 = nn.ConvTranspose2d(8, 4, 2, stride=2, bias=False)
-        self.conv9_1 = nn.Conv2d(8, 4, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv9_2 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, bias=True)
+        self.up9 = nn.ConvTranspose2d(42, 24, 2, stride=2, bias=False)
+        self.conv9_1 = nn.Conv2d(48, 24, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv9_2 = nn.Conv2d(24, 23, kernel_size=3, stride=1, padding=1, bias=True)
 
         # The old implementation seems to set out channels with the size of the Bayer Pattern
         out_channel = self.out_channels if self.out_channels else 3 * (self.block_size ** 2)
-        self.conv10 = nn.Conv2d(4, out_channel, kernel_size=1, stride=1, padding=0, bias=True)
+        self.conv10 = nn.Conv2d(23, out_channel, kernel_size=1, stride=1, padding=0, bias=True)
 
+        self.init_parameters()
+
+    def init_parameters(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
-                m.bias.data.zero_()
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.ConvTranspose2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def _ch(self, width):
         ch = width * self.init_channels
@@ -181,7 +187,7 @@ class LSID(nn.Module):
 
         return x # depth_to_space_conv
 
-def lsid(model_cfg, model_path: str=None, device=None):
+def unet(model_cfg, model_path: str=None, device=None):
     model = LSID(model_cfg)
     if model_path:
         state_dict = torch.load(model_path, map_location=device)

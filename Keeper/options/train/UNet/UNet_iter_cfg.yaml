@@ -1,0 +1,83 @@
+exp_name: UNet_SIDD_width32_iter
+
+
+model_settings:
+    type: unet
+    in_channels: 3
+    out_channels: 3
+    width: 32
+    block_size: 2
+    compactor: False
+
+train_settings:
+    gpu: 4,5,6,7
+    seed: 13
+    trainer_type: iter
+    grad_clip: 5
+
+    optim:
+        type: AdamW
+        lr: !!float 1e-3
+        weight_decay: 0.
+        betas: [0.9, 0.9]
+    
+    scheduler:
+        type: CosineAnnealingLR
+        T_max: 200000
+        eta_min: !!float 1e-7
+
+    train_len: 200000
+    warmup_len: -1
+    save_ckpt_freq: !!float 5e3 
+
+    loss:
+        type: PSNRLoss
+        loss_weight: 1
+        reduction: mean
+
+    datasets:
+        train:
+            # data type and root
+            name: SIDD
+            type: PairedImageDataset
+
+            io_backend: 
+                type: lmdb
+            filename_tmpl: '{}'
+ 
+            dataroot_lq: ./datasets/SIDD/train/input_crops.lmdb
+            dataroot_gt: ./datasets/SIDD/train/gt_crops.lmdb
+
+            # data preprocess
+            gt_size: 256
+            use_flip: false
+            use_rot:  false
+
+            # dataloader
+            use_shuffle: True
+            num_worker_per_gpu: 4
+            batch_size_per_gpu: 8
+            dataset_enlarge_ratio: 1
+            prefetch_mode: ~ 
+
+        val:
+            name: SIDD_val
+            type: PairedImageDataset
+            io_backend: 
+                type: lmdb
+            dataroot_lq: ./datasets/SIDD/val/input_crops.lmdb
+            dataroot_gt: ./datasets/SIDD/val/gt_crops.lmdb
+
+        test:
+            name: SIDD_val
+            type: PairedImageDataset
+            io_backend: 
+                type: lmdb
+            dataroot_lq: ./datasets/SIDD/val/input_crops.lmdb
+            dataroot_gt: ./datasets/SIDD/val/gt_crops.lmdb
+
+display:
+    print_freq: 10
+
+
+

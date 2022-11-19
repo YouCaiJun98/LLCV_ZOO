@@ -1,0 +1,75 @@
+exp_name: UNet_sampled_6
+
+
+model_settings:
+    type: unet
+    in_channels: 3
+    out_channels: 3
+    width: 32
+    block_size: 2
+    compactor: False
+
+train_settings:
+    trainer_type: epoch
+    resume: # ./checkpoints/UNet_Baselines/SIDD_baseline_long/best_psnr.pth.tar
+
+    optim:
+        type: AdamW
+        lr: !!float 1e-3
+        weight_decay: 0.
+        betas: [0.9, 0.9]
+    
+    scheduler:
+        type: FlexMultiStageLR
+        lr_schedule:
+            20: 1.e-4
+            40: 5.e-5
+            60: 2.5e-5
+            -1: 1.e-5
+ 
+
+    # TODO
+    train_len: 80
+    warmup_len: -1
+
+    # TODO
+    loss:
+        type: L1Loss
+        loss_weight: 1
+        reduction: mean
+
+    datasets:
+        train:
+            # data type and root
+            name: SIDD
+            io_backend: disk
+            root: ./datasets/SIDD/SIDD_patches/train
+
+            # data preprocess
+            size: 256
+            use_flip: True
+            use_rot:  True
+
+            # dataloader
+            use_shuffle: True
+            num_worker_per_gpu: 4
+            batch_size_per_gpu: 32
+
+        val:
+            name: SIDD
+            io_backend: disk
+            root: ./datasets/SIDD/SIDD_patches/val
+        
+        test:
+            name: SIDD
+            io_backend: disk
+            root: ./datasets/SIDD/SIDD_patches/test
+
+    seed: 13
+    gpu: 3
+    grad_clip: 5
+
+display:
+    print_freq: 10
+
+

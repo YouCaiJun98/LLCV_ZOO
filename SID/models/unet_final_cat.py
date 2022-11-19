@@ -52,7 +52,6 @@ class LSID(nn.Module):
         self.block_size = model_cfg['block_size']
         self.in_channels = model_cfg['in_channels']
         self.out_channels = model_cfg['out_channels']
-        self.block_size = model_cfg['block_size']
         self.width = model_cfg['width']
         assert type(self.width) in [int, float], 'Number of Base Channel should be an integer or a float.'
 
@@ -89,9 +88,14 @@ class LSID(nn.Module):
         self.conv9_1 = nn.Conv2d(self._ch(1) + self._ch(1), self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
         self.conv9_2 = nn.Conv2d(self._ch(1), self._ch(1), kernel_size=3, stride=1, padding=1, bias=True)
 
+        self.final_up2 = nn.Upsample(scale_factor=2, mode='bicubic')
+        self.final_up3 = nn.Upsample(scale_factor=4, mode='bicubic')
+        self.final_up4 = nn.Upsample(scale_factor=8, mode='bicubic')
+
         # The old implementation seems to set out channels with the size of the Bayer Pattern
         out_channel = self.out_channels if self.out_channels else 3 * (self.block_size ** 2)
-        self.conv10 = nn.Conv2d(self._ch(1), out_channel, kernel_size=1, stride=1, padding=0, bias=True)
+        self.conv10 = nn.Conv2d(self._ch(1) + self._ch(1) + self._ch(2) + self._ch(4) + self._ch(8), \
+                                out_channel, kernel_size=1, stride=1, padding=0, bias=True)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -176,10 +180,17 @@ class LSID(nn.Module):
         x = self.conv9_2(x)
         x = self.lrelu(x)
 
-        x = self.conv10(x)
-        depth_to_space_conv = pixel_shuffle(x, upscale_factor=self.block_size, depth_first=True)
+        conv2_upsampled = self.final_up2(conv2)
+        conv3_upsampled = self.final_up3(conv3)
+        conv4_upsampled = self.final_up4(conv4)
 
-        return depth_to_space_conv
+        x = torch.cat((x, conv1, conv2_upsampled, conv3_upsampled, conv4_upsampled), 1)
+
+        x = self.conv10(x)
+
+        # depth_to_space_conv = pixel_shuffle(x, upscale_factor=self.block_size, depth_first=True)
+
+        return x
 
 def lsid(model_cfg, model_path: str=None, device=None):
     model = LSID(model_cfg)

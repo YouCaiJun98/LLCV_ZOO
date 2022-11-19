@@ -2,16 +2,20 @@ model_settings:
     in_channels: 3
     out_channels: 3
     width: 32
-    block_size: 4
+    encoder_block: [2, 2, 4, 8]
+    decoder_block: [2, 2, 2, 2]
+    middle_block: 12
     res_connect: skip
+    long_connect: cat
     head: True
+
 
 training_settings:
     seed: 54
     gpu: 4,5,6,7
     epochs: 200
-    batch_size: 30
-    patch_size: 256
+    batch_size: 8
+    patch_size: 512
     workers: 6
     init_lr: 1.e-4
     lr_schedule:

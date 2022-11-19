@@ -138,3 +138,11 @@ results/
 checkpoints/
 hae-llcv/
 Keeper/models/archived
+
+# sub zone of the zoo
+MPRNet/origin/
+NAFNet/origin/
+Restormer/Raw/
+SID/saved_patches/
+UnTamed/
+VSR/

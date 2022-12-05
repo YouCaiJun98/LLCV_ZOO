@@ -12,7 +12,8 @@ from torchvision import transforms
 import torchvision.transforms.functional as F
 from torch.utils.data import Dataset, DataLoader
 
-from .utils import *
+from .data_utils import *
+from .transforms import *
 
 class GoPro_sRGB_Train_DataSet(Dataset):
     def __init__(self, path, patch_size, length=None):

@@ -5,7 +5,8 @@ from PIL import Image
 import torchvision
 from torch.utils.data import Dataset
 
-from .utils import *
+from .data_utils import *
+from .transforms import *
 
 __all__ = ['bsd68', 'bsd100', 'bsd200']
 

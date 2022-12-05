@@ -1,5 +1,6 @@
 exp_name: UNet_sampled_6
-
+timestamp_enabled: False
+save_path: ./checkpoints
 
 model_settings:
     type: unet
@@ -10,6 +11,9 @@ model_settings:
     compactor: False
 
 train_settings:
+    gpu: 2
+    seed: 13
+    grad_clip: 5
     trainer_type: epoch
     resume: # ./checkpoints/UNet_Baselines/SIDD_baseline_long/best_psnr.pth.tar
 
@@ -43,7 +47,7 @@ train_settings:
             # data type and root
             name: SIDD
             io_backend: disk
-            root: ./datasets/SIDD/SIDD_patches/train
+            root: ../feed/SIDD/SIDD_patches/train
 
             # data preprocess
             size: 256
@@ -58,16 +62,13 @@ train_settings:
         val:
             name: SIDD
             io_backend: disk
-            root: ./datasets/SIDD/SIDD_patches/val
+            root: ../feed/SIDD/SIDD_patches/val
         
         test:
             name: SIDD
             io_backend: disk
-            root: ./datasets/SIDD/SIDD_patches/test
+            root: ../feed/SIDD/SIDD_patches/test
 
-    seed: 13
-    gpu: 3
-    grad_clip: 5
 
 display:
     print_freq: 10

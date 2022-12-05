@@ -24,7 +24,8 @@ from   torchvision import transforms
 import torchvision.transforms.functional as F
 from   torch.utils.data import Dataset, DataLoader
 
-import utils
+import toolkits.utils as utils
+from toolkits import get_logger
 import models
 
 class DND_sRGB_Dataset(Dataset):
@@ -111,7 +112,7 @@ def main():
 
     # get info logger
     args.evaluate = True
-    logging = utils.get_logger(args)
+    logging = get_logger()
 
     # set up device.
     if args.gpu and torch.cuda.is_available():

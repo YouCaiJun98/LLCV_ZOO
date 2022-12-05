@@ -1,4 +1,6 @@
-exp_name: UNet_SIDD_width32_iter
+exp_name: UNet_iter_debug
+timestamp_enabled: False
+save_path: ./checkpoints
 
 
 model_settings:
@@ -10,10 +12,11 @@ model_settings:
     compactor: False
 
 train_settings:
-    gpu: 4,5,6,7
+    gpu: 0
     seed: 13
-    trainer_type: iter
     grad_clip: 5
+    trainer_type: iter
+    resume: 
 
     optim:
         type: AdamW
@@ -35,46 +38,46 @@ train_settings:
         loss_weight: 1
         reduction: mean
 
-    datasets:
-        train:
-            # data type and root
-            name: SIDD
-            type: PairedImageDataset
+datasets:
+    train:
+        # data type and root
+        name: SIDD
+        type: PairedImageDataset
 
-            io_backend: 
-                type: lmdb
-            filename_tmpl: '{}'
+        io_backend: 
+            type: lmdb
+        filename_tmpl: '{}'
  
-            dataroot_lq: ./datasets/SIDD/train/input_crops.lmdb
-            dataroot_gt: ./datasets/SIDD/train/gt_crops.lmdb
+        lq_path: ../feed/SIDD/train/input_crops.lmdb
+        gt_path: ../feed/SIDD/train/gt_crops.lmdb
 
-            # data preprocess
-            gt_size: 256
-            use_flip: false
-            use_rot:  false
+        # data preprocess
+        gt_size: 256
+        use_flip: false
+        use_rot:  false
 
-            # dataloader
-            use_shuffle: True
-            num_worker_per_gpu: 4
-            batch_size_per_gpu: 8
-            dataset_enlarge_ratio: 1
-            prefetch_mode: ~ 
+        # dataloader
+        use_shuffle: True
+        num_worker_per_gpu: 4
+        batch_size_per_gpu: 32
+        dataset_enlarge_ratio: 1
+        prefetch_mode: ~ 
 
-        val:
-            name: SIDD_val
-            type: PairedImageDataset
-            io_backend: 
-                type: lmdb
-            dataroot_lq: ./datasets/SIDD/val/input_crops.lmdb
-            dataroot_gt: ./datasets/SIDD/val/gt_crops.lmdb
+    val:
+        name: SIDD_val
+        type: PairedImageDataset
+        io_backend: 
+            type: lmdb
+        lq_path: ../feed/SIDD/val/input_crops.lmdb
+        gt_path: ../feed/SIDD/val/gt_crops.lmdb
 
-        test:
-            name: SIDD_val
-            type: PairedImageDataset
-            io_backend: 
-                type: lmdb
-            dataroot_lq: ./datasets/SIDD/val/input_crops.lmdb
-            dataroot_gt: ./datasets/SIDD/val/gt_crops.lmdb
+    test:
+        name: SIDD_val
+        type: PairedImageDataset
+        io_backend: 
+            type: lmdb
+        lq_path: ../feed/SIDD/val/input_crops.lmdb
+        gt_path: ../feed/SIDD/val/gt_crops.lmdb
 
 display:
     print_freq: 10

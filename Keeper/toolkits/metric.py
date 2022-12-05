@@ -1,11 +1,15 @@
 '''
 Code: https://github.com/Po-Hsun-Su/pytorch-ssim
 '''
+import numpy as np
+from math import exp
+
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
-import numpy as np
-from math import exp
+
+from .metric_utils import rgb2ycbcr_pt
+
 
 def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size//2)**2/float(2*sigma**2)) for x in range(window_size)])
@@ -65,19 +69,34 @@ class SSIM(torch.nn.Module):
         return _ssim(img1, img2, window, self.window_size, channel, self.size_average)
 
 #  (B, C, H, W)
-def calc_SSIM(img1, img2, window_size = 11, size_average = True):
+def calc_SSIM(img1, img2, window_size = 11, size_average = True,
+              crop_border=0, test_y_channel=False):
+    assert img1.shape == img2.shape, f'Image shapes are different: {img1.shape}, {img2.shape}.'
+
     (_, channel, _, _) = img1.size()
+    if test_y_channel:
+        channel = 1
     window = create_window(window_size, channel)
 
     if img1.is_cuda:
         window = window.cuda(img1.get_device())
     window = window.type_as(img1)
 
+    if crop_border != 0:
+        img1 = img1[:, :, crop_border:-crop_border, crop_border:-crop_border]
+        img2 = img2[:, :, crop_border:-crop_border, crop_border:-crop_border]
+
+    if test_y_channel:
+        img1 = rgb2ycbcr_pt(img1, y_only=True)
+        img2 = rgb2ycbcr_pt(img2, y_only=True)
+
     return _ssim(img1, img2, window, window_size, channel, size_average)
+
 
 from typing import Union
 def calc_PSNR(inputs:torch.Tensor, targets:torch.Tensor,
-              data_range:Union[int, float]=1.0) -> float:
+              data_range:Union[int, float]=1.0,
+              crop_border:int=0, test_y_channel:bool=False) -> float:
     '''
     Args:
         inputs - the input tensor, should be of shape (N, C, H, W).
@@ -89,6 +108,16 @@ def calc_PSNR(inputs:torch.Tensor, targets:torch.Tensor,
     Reference:
         https://github.com/photosynthesis-team/piq/blob/master/piq/psnr.py
     '''
+    assert inputs.shape == targets.shape, f'Image shapes are different: {inputs.shape}, {targets.shape}.'
+
+    if crop_border != 0:
+        inputs = inputs[:, :, crop_border:-crop_border, crop_border:-crop_border]
+        targets = targets[:, :, crop_border:-crop_border, crop_border:-crop_border]
+
+    if test_y_channel:
+        inputs = rgb2ycbcr_pt(inputs, y_only=True)
+        targets = rgb2ycbcr_pt(targets, y_only=True)
+
     # Constant for numerical stability, could guarantee accuracy in .5f
     eps = 1e-10
     inputs = torch.clamp(inputs, 0, float(data_range))

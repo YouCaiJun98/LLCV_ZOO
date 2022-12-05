@@ -1,0 +1,104 @@
+exp_name: EDSR_Mx3_0.75
+timestamp_enabled: True
+save_path: ./checkpoints
+
+
+model_settings:
+    type: edsr
+    scale: 3
+    in_channels: 3
+    out_channels: 3
+    width: 48
+    blocks: 16
+    res_scale: 1.
+    rgb_range: 1.
+    rgb_mean: [0.4488, 0.4371, 0.4040]
+
+
+train_settings:
+    gpu: 2
+    seed: 13
+    trainer_type: iter
+    grad_clip: 5
+    # resume: ./checkpoints/EDSR_baseline.pt 
+
+    optim:
+        type: Adam
+        lr: !!float 1e-4
+        weight_decay: 0.
+        betas: [0.9, 0.9]
+    
+    scheduler:
+        type: MultiStepLR
+        milestones: [100000]
+        gamma: 0.2
+
+    train_len: 200000
+    warmup_len: -1
+    save_ckpt_freq: !!float 2e4 
+
+    loss:
+        type: L1Loss
+        loss_weight: 1
+        reduction: mean
+
+datasets:
+    train:
+        # data type and root
+        name: DIV2K
+        type: PairedImageDataset
+
+        io_backend: 
+            type: lmdb
+        filename_tmpl: '{}'
+ 
+        lq_path: ../feed/DIV2K/DIV2K_train_LR_bicubic_X3_sub.lmdb
+        gt_path: ../feed/DIV2K/DIV2K_train_HR_sub.lmdb
+        data_range: '0001-0800'
+
+        # data preprocess
+        scale: 3
+        gt_size: 96
+        use_flip: true
+        use_rot:  true
+
+        # dataloader
+        use_shuffle: True
+        num_worker_per_gpu: 6
+        batch_size_per_gpu: 16
+        dataset_enlarge_ratio: 100
+        prefetch_mode: ~ 
+
+    val:
+        name: DIV2K_val
+        type: PairedImageDataset
+        io_backend: 
+            type: disk
+        filename_tmpl: '{}x3'
+            
+        lq_path: ../feed/DIV2K/DIV2K_train_LR_bicubic/X3
+        gt_path: ../feed/DIV2K/DIV2K_train_HR
+        data_range: '0801-0810'
+
+    test_1:
+        name: Set5
+        type: PairedImageDataset
+        io_backend: 
+            type: disk
+        gt_path: ../feed/SR_val/Set5/GTmod12
+        lq_path: ../feed/SR_val/Set5/LRbicx3
+
+    test_2:
+        name: Set14
+        type: PairedImageDataset
+        io_backend: 
+            type: disk
+        gt_path: ../feed/SR_val/Set14/GTmod12
+        lq_path: ../feed/SR_val/Set14/LRbicx3
+
+
+display:
+    print_freq: 100
+
+
+

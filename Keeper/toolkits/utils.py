@@ -1,35 +1,54 @@
 from typing import Union
 import logging
 import os
+import os.path as osp
 import sys
 import shutil
 import torch
 
-def get_logger(args):
-    if args.slave:
-        class Dumb_Logger:
-            def __getattr__(self, *args):
-                def no_op(*args, **kwargs):
-                    """Accept every signature by doing non-operation."""
-                    pass
 
-                return no_op
-        dumb_logger = Dumb_Logger()
-        return dumb_logger
-    log_format = "%(asctime)s %(message)s"
-    logging.basicConfig(
-        stream=sys.stdout,
-        level=logging.INFO,
-        format=log_format,
-        datefmt='%m/%d %I:%M:%S %p')
-    logger = logging.getLogger()
-    if args.save_flag:
-        file_handler = logging.FileHandler(os.path.join(args.save_path, "test.log" if
-                                                        args.evaluate else "train.log"))
-        file_handler.setFormatter(logging.Formatter(log_format))
-        logger.addHandler(file_handler)
-    logger.info("Conducting Command: %s", " ".join(sys.argv))
-    return logger
+
+def scandir(dir_path, suffix=None, recursive=False, full_path=False):
+    """Scan a directory to find the interested files.
+
+    Args:
+        dir_path (str): Path of the directory.
+        suffix (str | tuple(str), optional): File suffix that we are
+            interested in. Default: None.
+        recursive (bool, optional): If set to True, recursively scan the
+            directory. Default: False.
+        full_path (bool, optional): If set to True, include the dir_path.
+            Default: False.
+
+    Returns:
+        A generator for all the interested files with relative pathes.
+    """
+
+    if (suffix is not None) and not isinstance(suffix, (str, tuple)):
+        raise TypeError('"suffix" must be a string or tuple of strings')
+
+    root = dir_path
+
+    def _scandir(dir_path, suffix, recursive):
+        for entry in os.scandir(dir_path):
+            if not entry.name.startswith('.') and entry.is_file():
+                if full_path:
+                    return_path = entry.path
+                else:
+                    return_path = osp.relpath(entry.path, root)
+
+                if suffix is None:
+                    yield return_path
+                elif return_path.endswith(suffix):
+                    yield return_path
+            else:
+                if recursive:
+                    yield from _scandir(
+                        entry.path, suffix=suffix, recursive=recursive)
+                else:
+                    continue
+
+    return _scandir(dir_path, suffix=suffix, recursive=recursive)
 
 
 def create_exp_dir(path, scripts_to_save=None):

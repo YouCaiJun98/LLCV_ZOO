@@ -1,16 +1,140 @@
 import os
 import math
+import importlib
+import numpy as np
+from functools import partial
 
 import torch
 
 from .BSD   import *
 from .SIDD  import *
-from .utils import *
 from .SID   import *
 from .GoPro import *
 
+from toolkits import get_logger, get_dist_info
+
+__all__ = ['get_dataloader']
+
+
+# automatically scan and import dataset modules
+# scan all the files under the data folder with '_dataset' in file names
+dataset_folder = os.path.dirname(os.path.abspath(__file__))
+dataset_filenames = [
+    f.split('.')[0] for f in os.listdir(dataset_folder) \
+    if f.endswith('.py') and not f.startswith('__')
+]
+# import all the dataset modules
+_dataset_modules = [
+    importlib.import_module(f'datasets.{file_name}')
+    for file_name in dataset_filenames
+]
+
+
+
+def create_dataset(dataset_opt):
+    """Create dataset.
+
+    Args:
+        dataset_opt (dict): Configuration for dataset. It constains:
+            name (str): Dataset name.
+            type (str): Dataset type.
+    """
+    dataset_type = dataset_opt['type']
+    # dynamic instantiation
+    dataset_cls = None
+    for module in _dataset_modules:
+        dataset_cls = getattr(module, dataset_type, None)
+        if dataset_cls is not None:
+            break
+    if dataset_cls is None:
+        raise ValueError(f'Dataset {dataset_type} is not found.')
+
+    dataset = dataset_cls(dataset_opt)
+
+    logger = get_logger()
+    logger.info(f'Dataset {dataset.__class__.__name__} - {dataset_opt["name"]}'
+                 ' is created.')
+
+    return dataset
+
+
+def create_dataloader(dataset, dataset_opt, num_gpu=1, dist=False, sampler=None, seed=None):
+    """Create dataloader.
+
+    Args:
+        dataset (torch.utils.data.Dataset): Dataset.
+        dataset_opt (dict): Dataset options. It contains the following keys:
+            phase (str): 'train' or 'val'.
+            num_worker_per_gpu (int): Number of workers for each GPU.
+            batch_size_per_gpu (int): Training batch size for each GPU.
+        num_gpu (int): Number of GPUs. Used only in the train phase.
+            Default: 1.
+        dist (bool): Whether in distributed training. Used only in the train
+            phase. Default: False.
+        sampler (torch.utils.data.sampler): Data sampler. Default: None.
+        seed (int | None): Seed. Default: None
+    """
+    phase = dataset_opt['phase']
+    rank, _ = get_dist_info()
+
+    if phase == 'train':
+        if dist:
+            batch_size = dataset_opt['batch_size_per_gpu']
+            num_workers = dataset_opt['num_worker_per_gpu']
+        else:
+            multiplier = 1 if num_gpu == 0 else num_gpu
+            batch_size = dataset_opt['batch_size_per_gpu'] * multiplier
+            num_workers = dataset_opt['num_worker_per_gpu'] * multiplier
+        dataloader_args = dict(
+            dataset=dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            sampler=sampler,
+            drop_last=True,
+            persistent_workers=True,
+        )
+        if sampler is None:
+            dataloader_args['shuffle'] = True
+        dataloader_args['worker_init_fn'] = partial(
+            worker_init_fn, num_workers=num_workers, rank=rank, seed=seed
+        ) if seed is not None else None
+    elif phase in ['val', 'test']:
+        dataloader_args = dict(
+            dataset=dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0
+        )
+
+    else:
+        raise ValueError(f'Wrong dataset phase: {phase}. '
+                         "Supported ones are 'train', 'val' and 'test'.")
+
+    dataloader_args['pin_memory'] = dataset_opt.get('pin_memory', False)
+
+    prefetch_mode = dataset_opt.get('prefetch_mode')
+    if prefetch_mode == 'cpu':
+        num_prefetch_queue = dataset_opt.get('num_prefetch_queue', 1)
+        logger = get_logger()
+        logger.info(f'Use {prefetch_mode} prefetch dataloader: '
+                    f'num_prefetch_queue = {num_prefetch_queue}')
+        return PrefetchDataLoader(
+            num_prefetch_queue=num_prefetch_queue, **dataloader_args)
+    else:
+        return torch.utils.data.DataLoader(**dataloader_args)
+
+
+def worker_init_fn(worker_id, num_workers, rank, seed):
+    worker_seed = num_workers * rank + worker_id + seed
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+
 def get_dataloader(args):
-    train_loader, val_loader, test_loader = None, None, None
+    # There can be multiple test_loaders but only one train_loader and one val_loader.
+    train_loader, val_loader, test_loader = None, {}, {}
 
     # TODO: this partition is wrong!
     if args.cfg['train_settings']['trainer_type'] == 'epoch':
@@ -62,9 +186,9 @@ def get_dataloader(args):
     else:
         # TODO: Here we fix iter training dataset as lmdb formatted.
         from .data_sampler import EnlargedSampler
-        from basicsr.data import create_dataloader, create_dataset
-        for phase, dataset_settings in args.cfg['train_settings']['datasets'].items():
-            if phase == 'train':
+        # from basicsr.data import create_dataset
+        for phase, dataset_settings in args.cfg['datasets'].items():
+            if 'train' in phase:
                 # TODO: dataset enlarge ratio not implemented!
                 dataset_enlarge_ratio = dataset_settings.get('dataset_enlarge_ratio', 1)
                 dataset_settings['phase'] = 'train'
@@ -94,32 +218,36 @@ def get_dataloader(args):
                     f'\n\tRequire iter number per epoch: {args.num_iter_per_epoch}'
                     f'\n\tTotal epochs: {args.total_epochs}; iters: {args.total_iters}.')
 
-            elif phase == 'val':
+            elif 'val' in phase:
                 dataset_settings['phase'] = 'val'
                 val_data = create_dataset(dataset_settings)
-                val_loader = create_dataloader(
-                    val_data,
-                    dataset_settings,
-                    num_gpu=args.world_size,
-                    dist=args.multi_cards,
-                    sampler=None,
-                    seed=args.seed)
+                val_loader.update({
+                    dataset_settings['name']:create_dataloader(
+                        val_data,
+                        dataset_settings,
+                        num_gpu=args.world_size,
+                        dist=args.multi_cards,
+                        sampler=None,
+                        seed=args.seed)
+                })
                 args.logging.info(
                     'Validation statistics:'
                     f'Number of val images/folders in {dataset_settings["name"]}: '
                     f'{len(val_data)}'
                 )
 
-            elif phase == 'test':
+            elif 'test' in phase:
                 dataset_settings['phase'] = 'test'
                 test_data = create_dataset(dataset_settings)
-                test_loader = create_dataloader(
-                    test_data,
-                    dataset_settings,
-                    num_gpu=args.world_size,
-                    dist=args.multi_cards,
-                    sampler=None,
-                    seed=args.seed)
+                test_loader.update({
+                    dataset_settings['name']:create_dataloader(
+                        test_data,
+                        dataset_settings,
+                        num_gpu=args.world_size,
+                        dist=args.multi_cards,
+                        sampler=None,
+                        seed=args.seed)
+                })
                 args.logging.info(
                     'Testing statistics:'
                     f'Number of val images/folders in {dataset_settings["name"]}: '

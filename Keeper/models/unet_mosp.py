@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
-__all__ = ['LSID', 'unet', 'module_name']
+__all__ = ['LSID', 'unet_mosp', 'module_name']
 
 module_name = ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2', 'conv3_1', 'conv3_2',
                'conv4_1', 'conv4_2', 'conv5_1', 'conv5_2', 'up6', 'conv6_1',
@@ -187,7 +187,7 @@ class LSID(nn.Module):
 
         return x # depth_to_space_conv
 
-def unet(model_cfg, model_path: str=None, device=None):
+def unet_mosp(model_cfg, model_path: str=None, device=None):
     model = LSID(model_cfg)
     if model_path:
         state_dict = torch.load(model_path, map_location=device)

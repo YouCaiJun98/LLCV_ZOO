@@ -98,11 +98,14 @@ class BaseTrainer():
             if os.path.isfile(self.args.resume):
                 self.logging.info("Loading checkpoint '{}'".format(self.args.resume))
                 checkpoint = torch.load(self.args.resume, map_location=self.device)
-                # clean the checkpoint 
-                if 'total_params' in checkpoint['state_dict']:
-                    checkpoint['state_dict'].pop('total_params')
-                    checkpoint['state_dict'].pop('total_ops')
-                self.model.load_state_dict(checkpoint['state_dict'])
+                if 'state_dict' in checkpoint:
+                    # clean the checkpoint 
+                    if 'total_params' in checkpoint['state_dict']:
+                        checkpoint['state_dict'].pop('total_params')
+                        checkpoint['state_dict'].pop('total_ops')
+                    self.model.load_state_dict(checkpoint['state_dict'])
+                else:
+                    self.model.load_state_dict(checkpoint)
                 if 'epoch' in checkpoint:
                     self.start_epoch = checkpoint['epoch']
                 if 'iter' in checkpoint:
@@ -122,6 +125,7 @@ class BaseTrainer():
                 optim_params.append(v)
 
         self.optim_type = train_settings['optim'].pop('type')
+        # TODO: maybe something more fancy.
         if self.optim_type == 'Adam':
             self.optimizer = torch.optim.Adam([{'params': optim_params}],
                                               **train_settings['optim'])
@@ -142,10 +146,12 @@ class BaseTrainer():
     def create_scheduler(self):
         # TODO: currently we only support single scheduler training.
         train_settings = self.cfg['train_settings']
-
         self.scheduler_type = train_settings['scheduler'].pop('type')
         if self.scheduler_type == 'CosineAnnealingLR':
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, **train_settings['scheduler'])
+
+        elif self.scheduler_type == 'MultiStepLR':
+            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, **train_settings['scheduler'])
 
         # TODO: wrap such flexible MultiStage LR as lr_scheduler.
         elif self.scheduler_type == 'FlexMultiStageLR':
@@ -186,6 +192,23 @@ class BaseTrainer():
 
     def val(self):
         pass
+
+    def get_val_status(self, test_flag):
+        # During validation, we don't crop border or test on the y channel. 
+        crop_border = 0
+        test_y_channel = False
+        if not test_flag:
+            return crop_border, test_y_channel
+        else:
+            # default test case.
+            if self.cfg.get('val_settings') is None:
+                crop_border = 0
+                test_y_channel = False
+            else:
+                val_cfg = self.cfg.get('val_settings')
+                crop_border = val_cfg.get('crop_border', 0)
+                test_y_channel = val_cfg.get('test_y_channel', False)
+            return crop_border, test_y_channel
 
     def update_learning_rate(self, curr_iter=None, warmup_iter=-1):
         """Update learning rate.
@@ -287,7 +310,12 @@ class EpochTrainer(BaseTrainer):
             if self.args.eager_test and epoch % self.args.eager_test == 0:
                 self.logging.info('<-Testing Phase->')
                 psnr_test, ssim_test, loss_test = self.val(True)
-                self.logging.info('Test - PSNR:%4f SSIM:%4f Loss:%4f', psnr_test, ssim_test, loss_test)
+                for dataset_name in psnr_test.keys():
+                    self.logging.info(f'Test - {dataset_name:}')
+                    self.logging.info('PSNR:%4f SSIM:%4f Loss:%4f',
+                                      psnr_test[dataset_name],
+                                      ssim_test[dataset_name],
+                                      loss_test[dataset_name])
 
             if not self.slave:
                 # model save
@@ -320,41 +348,58 @@ class EpochTrainer(BaseTrainer):
 
 
     def val(self, test_flag=False):
+        PSNR_avg = {}
+        SSIM_avg = {}
+        Loss_avg = {}
         Loss = toolkits.AverageMeter('Loss')
         Batch_time = toolkits.AverageMeter('batch time')
         PSNR = toolkits.AverageMeter('PSNR')
         SSIM = toolkits.AverageMeter('SSIM')
+        crop_border, test_y_channel = self.get_val_status(test_flag)
 
         # timer
         end = time.time()
 
         self.model.eval()
         with torch.no_grad():
-            loader = self.test_loader if test_flag else self.val_loader
-            for batch, (inputs, targets) in enumerate(loader):
-                batch_size = inputs.size(0)
-                inputs, targets = inputs.to(self.device), targets.to(self.device)
-                outputs = self.model(inputs)
+            loaders = self.test_loader if test_flag else self.val_loader
+            for loader_name, loader in loaders.items():
+                PSNR.reset()
+                SSIM.reset()
+                Loss.reset()
+                self.logging.info('Phase {} - {}'.format('Test' if test_flag else 'Val', loader_name))
+                self.logging.info(f'Crop Border - {crop_border}; Test on Y channel - {test_y_channel}.')
+                for batch, (inputs, targets) in enumerate(loader):
+                    batch_size = inputs.size(0)
+                    inputs, targets = inputs.to(self.device), targets.to(self.device)
+                    outputs = self.model(inputs)
 
-                loss = self.criterion(outputs, targets)
-                ssim = calc_SSIM(torch.clamp(outputs,0,1), targets)
-                psnr = calc_PSNR(outputs, targets)
-                PSNR.update(psnr, batch_size)
-                SSIM.update(ssim, batch_size)
-                Loss.update(loss.item(), batch_size)
-                Batch_time.update(time.time() - end)
-                end = time.time()
+                    loss = self.criterion(outputs, targets)
+                    ssim = calc_SSIM(torch.clamp(outputs,0,1), targets,
+                                     crop_border=crop_border, test_y_channel=test_y_channel)
+                    psnr = calc_PSNR(outputs, targets,
+                                     crop_border=crop_border, test_y_channel=test_y_channel)
+                    PSNR.update(psnr, batch_size)
+                    SSIM.update(ssim, batch_size)
+                    Loss.update(loss.item(), batch_size)
+                    Batch_time.update(time.time() - end)
+                    end = time.time()
 
-                if self.disp_freq is not None and batch % self.disp_freq == 0:
-                    self.logging.info('batch [{0}/{1}]  \t'
-                             'Time {Batch_time.val:.3f} ({Batch_time.avg:.3f})\t'
-                             'Loss {Loss.val:.3f} ({Loss.avg:.3f})\t'
-                             'PSNR {PSNR.val:.3f} ({PSNR.avg:.3f})\t'
-                             'SSIM {SSIM.val:.3f} ({SSIM.avg:.3f})\t'
-                             .format(batch, len(loader), Batch_time=Batch_time, Loss=Loss,
-                                     PSNR=PSNR, SSIM=SSIM))
-
-        return PSNR.avg, SSIM.avg, Loss.avg
+                    if self.disp_freq is not None and batch % self.disp_freq == 0:
+                        self.logging.info('batch [{0}/{1}]  \t'
+                                'Time {Batch_time.val:.3f} ({Batch_time.avg:.3f})\t'
+                                'Loss {Loss.val:.3f} ({Loss.avg:.3f})\t'
+                                'PSNR {PSNR.val:.3f} ({PSNR.avg:.3f})\t'
+                                'SSIM {SSIM.val:.3f} ({SSIM.avg:.3f})\t'
+                                .format(batch, len(loader), Batch_time=Batch_time, Loss=Loss,
+                                        PSNR=PSNR, SSIM=SSIM))
+                PSNR_avg.update({loader_name: PSNR.avg})
+                SSIM_avg.update({loader_name: SSIM.avg})
+                Loss_avg.update({loader_name: Loss.avg})
+        # we assume that there is only one val loader.
+        if not test_flag:
+            return PSNR.avg, SSIM.avg, Loss.avg
+        return PSNR_avg, SSIM_avg, Loss_avg
 
 
 
@@ -373,7 +418,7 @@ class IterTrainer(BaseTrainer):
     def init_training_settings(self):
         super(IterTrainer, self).init_training_settings()
         # TODO: here we fix prefetcher as CPUPrefetcher
-        from basicsr.data.prefetch_dataloader import CPUPrefetcher
+        from datasets.prefetch_dataloader import CPUPrefetcher
         self.prefetcher = CPUPrefetcher(self.train_loader)
 
     def train(self):
@@ -396,10 +441,10 @@ class IterTrainer(BaseTrainer):
                 # TODO: check this
                 self.train_loader.sampler.set_epoch(self.curr_epoch)
                 self.prefetcher.reset()
+                end = time.time()
                 self.train_data = self.prefetcher.next()
 
                 while self.train_data is not None:
-                    end = time.time()
                     self.model.train()
                     inputs, targets = self.train_data['lq'], self.train_data['gt']
                     batch_size = inputs.size(0)
@@ -408,27 +453,24 @@ class IterTrainer(BaseTrainer):
                     self.curr_iter += 1
                     if self.curr_iter > self.iters:
                         break
-
                     # update learning rate 
                     self.update_learning_rate(self.curr_iter)
                     # forward and backward
-                    outputs = self.model(inputs)
+                    outputs = self.model(inputs) # 0.01s
                     loss = self.criterion(outputs, targets)
                     self.optimizer.zero_grad()
-                    loss.backward()
+                    loss.backward() # 0.02s
                     nn.utils.clip_grad_norm_(self.model.parameters(), 0.1)
-                    self.optimizer.step()
+                    self.optimizer.step() # 0.01s
 
                     with torch.no_grad():
                         psnr = calc_PSNR(outputs, targets)
                         ssim = calc_SSIM(torch.clamp(outputs,0,1), targets)
-
                     # display
                     Loss.update(loss.item(), batch_size)
                     Batch_time.update(time.time() - end)
                     PSNR.update(psnr, batch_size)
                     SSIM.update(ssim, batch_size)
-                    end = time.time()
 
                     if self.disp_freq is not None and self.curr_iter % self.disp_freq == 0:
                         self.logging.info('batch [{0}/{1}] \t'
@@ -474,6 +516,7 @@ class IterTrainer(BaseTrainer):
 
                         self.logging.info('<-Training Phase->')
 
+                    end = time.time()
                     # next batch of data
                     self.train_data = self.prefetcher.next()
 
@@ -491,41 +534,59 @@ class IterTrainer(BaseTrainer):
 
 
     def val(self, test_flag=False):
+        PSNR_avg = {}
+        SSIM_avg = {}
+        Loss_avg = {}
         Loss = toolkits.AverageMeter('Loss')
         Batch_time = toolkits.AverageMeter('batch time')
         PSNR = toolkits.AverageMeter('PSNR')
         SSIM = toolkits.AverageMeter('SSIM')
+        crop_border, test_y_channel = self.get_val_status(test_flag)
 
         # timer
         end = time.time()
 
         self.model.eval()
         with torch.no_grad():
-            loader = self.test_loader if test_flag else self.val_loader
-            for batch, data in enumerate(loader):
-                inputs, targets = data['lq'].to(self.device), data['gt'].to(self.device)
-                batch_size = inputs.size(0)
-                outputs = self.model(inputs)
+            loaders = self.test_loader if test_flag else self.val_loader
+            for loader_name, loader in loaders.items():
+                PSNR.reset()
+                SSIM.reset()
+                Loss.reset()
+                self.logging.info('Phase {} - {}'.format('Test' if test_flag else 'Val', loader_name))
+                self.logging.info(f'Crop Border - {crop_border}; Test on Y channel - {test_y_channel}.')
+                for batch, data in enumerate(loader):
+                    inputs, targets = data['lq'].to(self.device), data['gt'].to(self.device)
+                    batch_size = inputs.size(0)
+                    outputs = self.model(inputs)
 
-                loss = self.criterion(outputs, targets)
-                ssim = calc_SSIM(torch.clamp(outputs,0,1), targets)
-                psnr = calc_PSNR(outputs, targets)
-                PSNR.update(psnr, batch_size)
-                SSIM.update(ssim, batch_size)
-                Loss.update(loss.item(), batch_size)
-                Batch_time.update(time.time() - end)
-                end = time.time()
+                    loss = self.criterion(outputs, targets)
+                    ssim = calc_SSIM(torch.clamp(outputs,0,1), targets,
+                                     crop_border=crop_border, test_y_channel=test_y_channel)
+                    psnr = calc_PSNR(outputs, targets,
+                                     crop_border=crop_border, test_y_channel=test_y_channel)
+                    PSNR.update(psnr, batch_size)
+                    SSIM.update(ssim, batch_size)
+                    Loss.update(loss.item(), batch_size)
+                    Batch_time.update(time.time() - end)
+                    end = time.time()
+                    if self.disp_freq is not None and batch % self.disp_freq == 0:
+                        self.logging.info('batch [{0}/{1}]  \t'
+                                'Time {Batch_time.val:.3f} ({Batch_time.avg:.3f})\t'
+                                'Loss {Loss.val:.3f} ({Loss.avg:.3f})\t'
+                                'PSNR {PSNR.val:.3f} ({PSNR.avg:.3f})\t'
+                                'SSIM {SSIM.val:.3f} ({SSIM.avg:.3f})\t'
+                                .format(batch, len(loader), Batch_time=Batch_time, Loss=Loss,
+                                        PSNR=PSNR, SSIM=SSIM))
 
-                if self.disp_freq is not None and batch % self.disp_freq == 0:
-                    self.logging.info('batch [{0}/{1}]  \t'
-                             'Time {Batch_time.val:.3f} ({Batch_time.avg:.3f})\t'
-                             'Loss {Loss.val:.3f} ({Loss.avg:.3f})\t'
-                             'PSNR {PSNR.val:.3f} ({PSNR.avg:.3f})\t'
-                             'SSIM {SSIM.val:.3f} ({SSIM.avg:.3f})\t'
-                             .format(batch, len(loader), Batch_time=Batch_time, Loss=Loss,
-                                     PSNR=PSNR, SSIM=SSIM))
+                PSNR_avg.update({loader_name: PSNR.avg})
+                SSIM_avg.update({loader_name: SSIM.avg})
+                Loss_avg.update({loader_name: Loss.avg})
+        # we assume that there is only one val loader.
+        if not test_flag:
+            return PSNR.avg, SSIM.avg, Loss.avg
 
-        return PSNR.avg, SSIM.avg, Loss.avg
+        return PSNR_avg, SSIM_avg, Loss_avg
 
 
 

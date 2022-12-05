@@ -136,4 +136,6 @@ results/
 
 # repo related
 scripts/ood/
+exploration/
+checkpoint/
 
